@@ -131,7 +131,7 @@ void readColumnValue(JET_SESID sesid, JET_TABLEID tableid, COLUMNLIST* columnLis
 int main(int argc, char* argv[]) {
 
 	//Linked list to contain the datatable columns metadata
-	COLUMNLIST* columnList, *msysObjectsColumns = (COLUMNLIST*)malloc(sizeof(COLUMNLIST));
+	COLUMNLIST* columnList, * msysObjectsColumns = (COLUMNLIST*)malloc(sizeof(COLUMNLIST));
 	COLUMNLIST* listHead = (COLUMNLIST*)malloc(sizeof(COLUMNLIST));
 
 
@@ -156,6 +156,7 @@ int main(int argc, char* argv[]) {
 	JET_COLUMNDEF _columndefname;
 	JET_COLUMNDEF _columndefobjid;
 	JET_COLUMNLIST _columnList;
+	JET_COLUMNDEF _columndefattdata;
 
 	JET_COLUMNDEF* columndefid = &_columndefid;
 	JET_COLUMNDEF* columndeftype = &_columndeftype;
@@ -163,8 +164,9 @@ int main(int argc, char* argv[]) {
 	JET_COLUMNDEF* columndefname = &_columndefname;
 	JET_COLUMNDEF* columndefobjid = &_columndefobjid;
 	JET_COLUMNLIST* colList = &_columnList;
+	JET_COLUMNDEF* testcolumndef = &_columndefattdata;
 
-	unsigned long a, b, c, d, e;
+	unsigned long a, b, c, d, e, att_size;
 	long bufferid[16];
 	char buffertype[256];
 	char buffertypecol[8];
@@ -176,7 +178,9 @@ int main(int argc, char* argv[]) {
 	unsigned char jetBuffer[JET_BUFFER_SIZE];
 	unsigned long jetSize;
 
-	char* baseName = "E:\\Code\\Intella\\test2003.edb";
+	// char* baseName = "E:\\Code\\Intella\\test2003.edb";
+	// char *baseName = "D:\\private\\edb\\Contracting-Other.edb";
+	char* baseName = "D:\\private\\edb\\International.edb";
 	// char* baseName = "C:\\Code\\Intella\\test2013\\test2013.edb";
 	// char* baseName = "C:\\Code\\Intella\\win10\\Windows.edb";
 	char* targetTable;
@@ -185,14 +189,14 @@ int main(int argc, char* argv[]) {
 	unsigned int i;
 
 	FILE* dump = NULL;
-	char * dumpFileName = "edb-dump.csv";
+	char* dumpFileName = "edb-dump.csv";
 	//SYSTEMTIME lt;
 
 	// RPC_WSTR Guid = NULL;
 	// LPWSTR stringSid = NULL;
 	long long sd_id = 0;
 	unsigned long dbPageSize = 32768; // 0;
-	
+	unsigned int recordId = 0;
 
 	listHead->next = NULL;
 	columnList = listHead;
@@ -202,30 +206,33 @@ int main(int argc, char* argv[]) {
 	//sprintf_s(dumpFileName, 64, "%s_ntds_%02d-%02d-%04d_%02dh%02d.csv",argv[1], lt.wDay, lt.wMonth, lt.wYear, lt.wHour, lt.wMinute);
 	// sprintf_s(dumpFileName, 64, "%s-ntds.dit-dump.csv", "edb");
 	// fopen_s(&dump, dumpFileName, "w");
-	
+
 	// Initialize ESENT. 
 	// See http://msdn.microsoft.com/en-us/library/windows/desktop/gg269297(v=exchg.10).aspx for error codes
 
 	err = JetGetDatabaseFileInfo(baseName, &dbPageSize, 4, JET_DbInfoPageSize);
 
-	Call( JetSetSystemParameter(0, JET_sesidNil, JET_paramDatabasePageSize, dbPageSize, NULL) );
-	Call( JetSetSystemParameter(0, JET_sesidNil, JET_paramEnablePersistedCallbacks, 0, NULL) );
-	
-	Call( JetCreateInstance(&instance, "edb-instance") );
-	Call( JetSetSystemParameter(&instance, JET_sesidNil, JET_paramRecovery, (JET_API_PTR)L"Off", NULL) );
+	Call(JetSetSystemParameter(0, JET_sesidNil, JET_paramDatabasePageSize, dbPageSize, NULL));
+	Call(JetSetSystemParameter(0, JET_sesidNil, JET_paramEnablePersistedCallbacks, 0, NULL));
 
-	Call( JetInit(&instance) );
-	Call( JetBeginSession(instance, &sesid, 0, 0) );
-	Call( JetAttachDatabase(sesid, baseName, JET_bitDbReadOnly) );
-	
-	Call( JetOpenDatabase(sesid, baseName, 0, &dbid, 0) );
-	
+	Call(JetCreateInstance(&instance, "edb-instance"));
+	Call(JetSetSystemParameter(&instance, JET_sesidNil, JET_paramRecovery, (JET_API_PTR)L"Off", NULL));
+
+	Call(JetInit(&instance));
+	Call(JetBeginSession(instance, &sesid, 0, 0));
+	Call(JetAttachDatabase(sesid, baseName, JET_bitDbReadOnly));
+
+	Call(JetOpenDatabase(sesid, baseName, 0, &dbid, 0));
+
 	//Let's enumerate the metadata about datatable (AD table)
 
-	tableName = "MSysObjects";
+	// tableName = "MSysObjects";
 	// tableName = "Msg";
+	tableName = "Body-3a0e-5159BE";
+	tableName = "Body-1-312D54823";
+	// tableName = "MsgHeader-1f11-F7EBB2";
 
-	Call( JetOpenTable(sesid, dbid, tableName, 0, 0, JET_bitTableReadOnly, &tableid) );
+	Call(JetOpenTable(sesid, dbid, tableName, 0, 0, JET_bitTableReadOnly, &tableid));
 
 	printf("[*]Opened table: %s\n", tableName);
 
@@ -242,16 +249,18 @@ int main(int argc, char* argv[]) {
 		buffername[c] = '\0';
 
 		printf(" - %s\n", buffername);
-	} 
-	while (JetMove(sesid, colList->tableid, JET_MoveNext, 0) == JET_errSuccess);
+	} while (JetMove(sesid, colList->tableid, JET_MoveNext, 0) == JET_errSuccess);
 
 	//Obtain structures with necessary information to retrieve column values
 
-	Call( JetGetColumnInfo(sesid, dbid, tableName, "Id", columndefid, 100 /*sizeof(JET_COLUMNDEF)*/, JET_ColInfo));
-	Call( JetGetColumnInfo(sesid, dbid, tableName, "Type", columndeftype, sizeof(JET_COLUMNDEF), JET_ColInfo) );
-	Call( JetGetColumnInfo(sesid, dbid, tableName, "ColtypOrPgnoFDP", columndeftypecol, sizeof(JET_COLUMNDEF), JET_ColInfo) );
-	Call( JetGetColumnInfo(sesid, dbid, tableName, "Name", columndefname, sizeof(JET_COLUMNDEF), JET_ColInfo) );
-	Call( JetGetColumnInfo(sesid, dbid, tableName, "ObjIdTable", columndefobjid, sizeof(JET_COLUMNDEF), JET_ColInfo) );
+	// Call(JetGetColumnInfo(sesid, dbid, tableName, "N3701", columndefattdata, sizeof(JET_COLUMNDEF), JET_ColInfo));
+	Call(JetGetColumnInfo(sesid, dbid, tableName, "N67b0", testcolumndef, sizeof(JET_COLUMNDEF), JET_ColInfo));
+
+	//Call( JetGetColumnInfo(sesid, dbid, tableName, "Id", columndefid, 100 /*sizeof(JET_COLUMNDEF)*/, JET_ColInfo));
+	//Call( JetGetColumnInfo(sesid, dbid, tableName, "Type", columndeftype, sizeof(JET_COLUMNDEF), JET_ColInfo) );
+	//Call( JetGetColumnInfo(sesid, dbid, tableName, "ColtypOrPgnoFDP", columndeftypecol, sizeof(JET_COLUMNDEF), JET_ColInfo) );
+	//Call( JetGetColumnInfo(sesid, dbid, tableName, "Name", columndefname, sizeof(JET_COLUMNDEF), JET_ColInfo) );
+	//Call( JetGetColumnInfo(sesid, dbid, tableName, "ObjIdTable", columndefobjid, sizeof(JET_COLUMNDEF), JET_ColInfo) );
 
 	//Position the cursor at the first record
 	Call(JetMove(sesid, tableid, JET_MoveFirst, 0));
@@ -259,55 +268,67 @@ int main(int argc, char* argv[]) {
 	//Retrieve columns metadata	
 	do
 	{
-		Call( JetRetrieveColumn(sesid, tableid, columndefid->columnid, 0, 0, &a, 0, 0) );
-		Call( JetRetrieveColumn(sesid, tableid, columndefid->columnid, bufferid, a, 0, 0, 0) );
+		JET_ERR err = JetRetrieveColumn(sesid, tableid, testcolumndef->columnid, 0, 0, &att_size, 0, 0);
+		char* att_data_buffer = malloc(att_size);
 
-		Call( JetRetrieveColumn(sesid, tableid, columndeftype->columnid, 0, 0, &b, 0, 0) );
-		Call( JetRetrieveColumn(sesid, tableid, columndeftype->columnid, buffertype, b, 0, 0, 0));
+		err = JetRetrieveColumn(sesid, tableid, testcolumndef->columnid, att_data_buffer, att_size, 0, 0, 0);
 
-		Call( JetRetrieveColumn(sesid, tableid, columndeftypecol->columnid, 0, 0, &e, 0, 0));
-		Call( JetRetrieveColumn(sesid, tableid, columndeftypecol->columnid, buffertypecol, e, 0, 0, 0));
+		printf("%8d MsgId: ", ++recordId);
+		for (unsigned int i = 0; i < att_size; i++) {
+			printf("%02x", att_data_buffer[i]);
+		}
+		printf("\n");
+		free(att_data_buffer);
 
-		Call( JetRetrieveColumn(sesid, tableid, columndefname->columnid, 0, 0, &c, 0, 0));
-		Call( JetRetrieveColumn(sesid, tableid, columndefname->columnid, buffername, c, 0, 0, 0));
-		buffername[c] = '\0';
-		
-		Call( JetRetrieveColumn(sesid, tableid, columndefobjid->columnid, 0, 0, &d, 0, 0));
-		Call( JetRetrieveColumn(sesid, tableid, columndefobjid->columnid, bufferobjid, d, 0, 0, 0));
+		// Call( JetRetrieveColumn(sesid, tableid, columndefid->columnid, 0, 0, &a, 0, 0) );
+		// Call( JetRetrieveColumn(sesid, tableid, columndefid->columnid, bufferid, a, 0, 0, 0) );
+
+		// Call( JetRetrieveColumn(sesid, tableid, columndeftype->columnid, 0, 0, &b, 0, 0) );
+		// Call( JetRetrieveColumn(sesid, tableid, columndeftype->columnid, buffertype, b, 0, 0, 0));
+
+		// Call( JetRetrieveColumn(sesid, tableid, columndeftypecol->columnid, 0, 0, &e, 0, 0));
+		// Call( JetRetrieveColumn(sesid, tableid, columndeftypecol->columnid, buffertypecol, e, 0, 0, 0));
+
+		// Call( JetRetrieveColumn(sesid, tableid, columndefname->columnid, 0, 0, &c, 0, 0));
+		// Call( JetRetrieveColumn(sesid, tableid, columndefname->columnid, buffername, c, 0, 0, 0));
+		// buffername[c] = '\0';
+
+		// Call( JetRetrieveColumn(sesid, tableid, columndefobjid->columnid, 0, 0, &d, 0, 0));
+		// Call( JetRetrieveColumn(sesid, tableid, columndefobjid->columnid, bufferobjid, d, 0, 0, 0));
 
 		//We got the correct type and table id, let's dump the column name and add it to the column list
-		if (buffertype[0] == (char)1) 
-		{
-			strcpy(currentTable, buffername);
-		}
-		else if (buffertype[0] == (char)2)
-		{
-			unsigned int j;
-			columnList->next = (COLUMNLIST*)malloc(sizeof(COLUMNLIST));
-			if (!columnList->next) {
-				printf("Memory allocation failed during metadata dump\n");
-				return(-1);
-			}
-			columnList = columnList->next;
-			columnList->next = NULL;
+		//if (buffertype[0] == (char)1) 
+		//{
+		//	strcpy(currentTable, buffername);
+		//}
+		//else if (buffertype[0] == (char)2)
+		//{
+		//	unsigned int j;
+		//	columnList->next = (COLUMNLIST*)malloc(sizeof(COLUMNLIST));
+		//	if (!columnList->next) {
+		//		printf("Memory allocation failed during metadata dump\n");
+		//		return(-1);
+		//	}
+		//	columnList = columnList->next;
+		//	columnList->next = NULL;
 
-			strcpy(columnList->name, buffername);
-			strcpy(columnList->tableName, currentTable);
+		//	strcpy(columnList->name, buffername);
+		//	strcpy(columnList->tableName, currentTable);
 
-			/*for (j = 0; j < c; j++)
-				columnList->name[j] = buffername[j];
-			columnList->name[c] = '\0';*/
-			columnList->type = buffertypecol[0];
-			columnList->id = bufferid[0];
-		}
-	}while (JetMove(sesid, tableid, JET_MoveNext, 0) == JET_errSuccess);
+		//	/*for (j = 0; j < c; j++)
+		//		columnList->name[j] = buffername[j];
+		//	columnList->name[c] = '\0';*/
+		//	columnList->type = buffertypecol[0];
+		//	columnList->id = bufferid[0];
+		//}
+	} while (JetMove(sesid, tableid, JET_MoveNext, 0) == JET_errSuccess);
 
 	Call(JetCloseTable(sesid, tableid));
 
 
 	//Let's use our metadata to dump the whole AD schema
 	tableName = "MSysObjects";
-	Call( JetOpenTable(sesid, dbid, tableName, 0, 0, JET_bitTableReadOnly, &tableid));
+	Call(JetOpenTable(sesid, dbid, tableName, 0, 0, JET_bitTableReadOnly, &tableid));
 
 	printf("[*]Opened table: %s\n", tableName);
 	printf("Dumping %s column names...\n", tableName);
@@ -321,7 +342,7 @@ int main(int argc, char* argv[]) {
 
 	printf("Dumping content...\n");
 
-	Call( JetMove(sesid, tableid, JET_MoveFirst, 0));
+	Call(JetMove(sesid, tableid, JET_MoveFirst, 0));
 	do
 	{
 		columnList = listHead;
@@ -329,7 +350,7 @@ int main(int argc, char* argv[]) {
 		{
 			columnList = columnList->next;
 			// printf("Column: %s / %s\n", columnList->tableName, columnList->name);
-			readColumnValue(sesid, tableid, columnList);			
+			readColumnValue(sesid, tableid, columnList);
 		}
 	} while (JetMove(sesid, tableid, JET_MoveNext, 0) == JET_errSuccess);
 
@@ -371,6 +392,6 @@ HandleError:
 		JetTerm(instance);
 		instance = 0;
 	}
-	
+
 	return 0;
 }
