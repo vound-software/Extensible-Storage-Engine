@@ -13706,11 +13706,12 @@ LOCAL JET_ERR JetGetPageInfoEx(
                 memcpy( pInfo2->rgChecksumExpected, &checksumExpected.rgChecksum[ 1 ], sizeof( pInfo2->rgChecksumExpected ) );
             }
 
-            if( checksumActual != checksumExpected )
+            if( Vound_DataVerificationsEnabled && checksumActual != checksumExpected )
             {
                 err = ErrERRCheck( JET_errReadVerifyFailure );
             }
-            else if ( databasePage == pagetype )
+            else
+            if ( databasePage == pagetype )
             {
                 pInfo->dbtime = (unsigned __int64)(cpage.Dbtime());
                 if ( fComputeStructureChecksum )
