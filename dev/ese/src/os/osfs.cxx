@@ -1628,13 +1628,6 @@ ERR COSFileSystem::ErrFileCreate(   _In_z_ const WCHAR* const       wszPath,
 
     do
     {
-        // Log file path...
-        {
-            FILE* f = fopen("c:\\temp\\ese-error.txt", "a");
-            fprintf(f, "ErrFileOpen: error %ls\n", wszAbsPath);
-            fclose(f);
-        }
-
         err     = JET_errSuccess;
         error   = ERROR_SUCCESS;
 
@@ -1653,6 +1646,15 @@ ERR COSFileSystem::ErrFileCreate(   _In_z_ const WCHAR* const       wszPath,
         }
     }
     while ( OsfsRetry.FRetry( err ) );
+
+    if (err == -1032) 
+    {
+        // Log file path...
+        FILE* f = fopen("c:\\temp\\ese-error.txt", "a");
+        fprintf(f, "ErrFileOpen: error %ls\n", wszAbsPath);
+        fclose(f);
+    }
+
     CallJ( err, HandleWin32Error );
 
     SetHandleInformation( hFile, HANDLE_FLAG_PROTECT_FROM_CLOSE, HANDLE_FLAG_PROTECT_FROM_CLOSE );
