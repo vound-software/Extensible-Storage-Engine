@@ -1734,8 +1734,19 @@ ERR COSFileSystem::ErrFileCreate(   _In_z_ const WCHAR* const       wszPath,
         delete posf;
         CloseHandle( hEvent );
 
+        // Log file path...
+        {
+            FILE* f = fopen("c:\\temp\\ese-error.txt", "a");
+            fprintf(f, "ErrFileOpen: error %ls\n", wszAbsPath);
+            fclose(f);
+        }
+
         if ( ( err = ErrFileOpen( wszAbsPath, ( fCached ? IFileAPI::fmfCached : IFileAPI::fmfNone ) | ( fLossyWriteBack ? IFileAPI::fmfLossyWriteBack : IFileAPI::fmfNone ), ppfapi ) ) < JET_errSuccess )
         {
+            FILE* f = fopen("c:\\temp\\ese-error.txt", "a");
+            fprintf(f, "ErrFileOpen: error %ls\n", wszAbsPath);
+            fclose(f);
+
             DeleteFileW( wszAbsPath );
         }
         return err;
