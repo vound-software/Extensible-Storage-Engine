@@ -117,7 +117,7 @@ BOOL OSFSRETRY::FRetry( const JET_ERR err )
         }
 
         // just a tick to let someone else run
-        UtilSleep( 2 );
+        UtilSleep( 200 );
 
         // retry for limited time
         // Cmp order is important because m_EndTick may have wrapped
