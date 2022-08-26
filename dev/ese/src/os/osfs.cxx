@@ -1625,15 +1625,14 @@ ERR COSFileSystem::ErrFileCreate(   _In_z_ const WCHAR* const       wszPath,
     Call( ErrPathComplete( wszPath, wszAbsPath ) );
 
     //  create the file, retrying for a limited time on access denied
+    {
+        FILE* f = fopen("c:\\temp\\ese-error.txt", "a");
+        fprintf(f, "ErrFileOpen: --------------------------------------------\n");
+        fclose(f);
+    }
 
     do
-    {
-        {
-            FILE* f = fopen("c:\\temp\\ese-error.txt", "a");
-            fprintf(f, "ErrFileOpen: --------------------------------------------\n");
-            fclose(f);
-        }
-        
+    {    
         err     = JET_errSuccess;
         error   = ERROR_SUCCESS;
 
