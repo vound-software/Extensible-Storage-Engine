@@ -1628,6 +1628,12 @@ ERR COSFileSystem::ErrFileCreate(   _In_z_ const WCHAR* const       wszPath,
 
     do
     {
+        {
+            FILE* f = fopen("c:\\temp\\ese-error.txt", "a");
+            fprintf(f, "ErrFileOpen: --------------------------------------------\n");
+            fclose(f);
+        }
+        
         err     = JET_errSuccess;
         error   = ERROR_SUCCESS;
 
@@ -1648,7 +1654,7 @@ ERR COSFileSystem::ErrFileCreate(   _In_z_ const WCHAR* const       wszPath,
             {
                 // Log file path...
                 FILE* f = fopen("c:\\temp\\ese-error.txt", "a");
-                fprintf(f, "ErrFileOpen: error %ls\n", wszAbsPath);
+                fprintf(f, "ErrFileOpen: win32-err: %ld, jet-err: %ld, file: %ls\n", error, err, wszAbsPath);
                 fprintf(f, "- DwDesiredAccessFromFileModeFlags: %lx\n", DwDesiredAccessFromFileModeFlags(IFileAPI::fmfNone));
                 fprintf(f, "- DwShareModeFromFileModeFlags: %lx\n", DwShareModeFromFileModeFlags(IFileAPI::fmfNone));
                 fprintf(f, "- DwCreationDispositionFromFileModeFlags: %lx\n", DwCreationDispositionFromFileModeFlags(fTrue, fmf));
