@@ -1643,17 +1643,21 @@ ERR COSFileSystem::ErrFileCreate(   _In_z_ const WCHAR* const       wszPath,
         {
             error   = GetLastError();
             err     = ErrGetLastError( error );
+
+            if (err == -1032)
+            {
+                // Log file path...
+                FILE* f = fopen("c:\\temp\\ese-error.txt", "a");
+                fprintf(f, "ErrFileOpen: error %ls\n", wszAbsPath);
+                fprintf(f, "- DwDesiredAccessFromFileModeFlags: %lx\n", DwDesiredAccessFromFileModeFlags(IFileAPI::fmfNone));
+                fprintf(f, "- DwShareModeFromFileModeFlags: %lx\n", DwShareModeFromFileModeFlags(IFileAPI::fmfNone));
+                fprintf(f, "- DwCreationDispositionFromFileModeFlags: %lx\n", DwCreationDispositionFromFileModeFlags(fTrue, fmf));
+                fprintf(f, "- DwFlagsAndAttributesFromFileModeFlags: %lx\n", DwFlagsAndAttributesFromFileModeFlags(fmf));
+                fclose(f);
+            }
         }
     }
     while ( OsfsRetry.FRetry( err ) );
-
-    if (err == -1032) 
-    {
-        // Log file path...
-        FILE* f = fopen("c:\\temp\\ese-error.txt", "a");
-        fprintf(f, "ErrFileOpen: error %ls\n", wszAbsPath);
-        fclose(f);
-    }
 
     CallJ( err, HandleWin32Error );
 
