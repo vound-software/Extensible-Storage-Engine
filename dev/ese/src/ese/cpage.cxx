@@ -4112,7 +4112,7 @@ ERR CPAGE::ErrValidatePage(
         }
 
         Call( err );
-
+        
         err = ErrCheckPage( CPRINTFDBGOUT::PcprintfInstance(), OnErrorReturnError, CheckAll );
 
         //  the page is fine
