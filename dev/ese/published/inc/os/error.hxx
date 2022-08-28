@@ -604,6 +604,11 @@ void ERRSetLastCall( __in const CHAR * szFile, __in const LONG lLine, __in const
     AssertRTL( err > -65536 && err < 65536 );           \
     if ( err < 0 )                                      \
     {                                                   \
+        if (err == -1032) {                             \
+        FILE *f = fopen("c:\\temp\\ese-error.txt", "a");\
+        fprintf(f, "CallR: error %s %d", #func, err);          \
+        fclose(f);                                      \
+        }                                               \
         ERRSetLastCall( __FILE__, __LINE__, err );      \
         return err;                                     \
     }                                                   \
@@ -617,6 +622,11 @@ void ERRSetLastCall( __in const CHAR * szFile, __in const LONG lLine, __in const
     AssertRTL( err > -65536 && err < 65536 );           \
     if ( err < 0 )                                      \
     {                                                   \
+        if (err == -1032) {                             \
+        FILE *f = fopen("c:\\temp\\ese-error.txt", "a");\
+        fprintf(f, "CallJ: error %s %d \n", #func, err); \
+        fclose(f);                                      \
+        }                                               \
         ERRSetLastCall( __FILE__, __LINE__, err );      \
         goto label;                                     \
     }                                                   \
@@ -637,6 +647,11 @@ void ERRSetLastCall( __in const CHAR * szFile, __in const LONG lLine, __in const
     LogJETCall( errCallSOnlyT = (func) );               \
     if ( JET_errSuccess != errCallSOnlyT )              \
     {                                                   \
+        if (errCallSOnlyT == -1032) {                             \
+        FILE *f = fopen("c:\\temp\\ese-error.txt", "a");\
+        fprintf(f, "CallS: error %s %d\n", #func, errCallSOnlyT);          \
+        fclose(f);                                      \
+        }                                               \
         AssertSz( errCallSOnlyT == JET_errSuccess, "errCallSOnlyT(%d) == JET_errSuccess", errCallSOnlyT );      \
     }                                                   \
 }

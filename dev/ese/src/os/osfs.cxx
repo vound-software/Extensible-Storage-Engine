@@ -117,7 +117,7 @@ BOOL OSFSRETRY::FRetry( const JET_ERR err )
         }
 
         // just a tick to let someone else run
-        UtilSleep( 2 );
+        UtilSleep( 200 );
 
         // retry for limited time
         // Cmp order is important because m_EndTick may have wrapped
@@ -1625,9 +1625,14 @@ ERR COSFileSystem::ErrFileCreate(   _In_z_ const WCHAR* const       wszPath,
     Call( ErrPathComplete( wszPath, wszAbsPath ) );
 
     //  create the file, retrying for a limited time on access denied
+    {
+        FILE* f = fopen("c:\\temp\\ese-error.txt", "a");
+        fprintf(f, "ErrFileOpen: --------------------------------------------\n");
+        fclose(f);
+    }
 
     do
-    {
+    {    
         err     = JET_errSuccess;
         error   = ERROR_SUCCESS;
 
@@ -1643,9 +1648,22 @@ ERR COSFileSystem::ErrFileCreate(   _In_z_ const WCHAR* const       wszPath,
         {
             error   = GetLastError();
             err     = ErrGetLastError( error );
+
+            if (err == -1032)
+            {
+                // Log file path...
+                FILE* f = fopen("c:\\temp\\ese-error.txt", "a");
+                fprintf(f, "ErrFileOpen: win32-err: %ld, jet-err: %ld, file: %ls\n", error, err, wszAbsPath);
+                fprintf(f, "- DwDesiredAccessFromFileModeFlags: %lx\n", DwDesiredAccessFromFileModeFlags(IFileAPI::fmfNone));
+                fprintf(f, "- DwShareModeFromFileModeFlags: %lx\n", DwShareModeFromFileModeFlags(IFileAPI::fmfNone));
+                fprintf(f, "- DwCreationDispositionFromFileModeFlags: %lx\n", DwCreationDispositionFromFileModeFlags(fTrue, fmf));
+                fprintf(f, "- DwFlagsAndAttributesFromFileModeFlags: %lx\n", DwFlagsAndAttributesFromFileModeFlags(fmf));
+                fclose(f);
+            }
         }
     }
     while ( OsfsRetry.FRetry( err ) );
+
     CallJ( err, HandleWin32Error );
 
     SetHandleInformation( hFile, HANDLE_FLAG_PROTECT_FROM_CLOSE, HANDLE_FLAG_PROTECT_FROM_CLOSE );
