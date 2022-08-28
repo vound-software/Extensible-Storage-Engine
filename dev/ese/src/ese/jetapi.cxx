@@ -13710,8 +13710,7 @@ LOCAL JET_ERR JetGetPageInfoEx(
             {
                 err = ErrERRCheck( JET_errReadVerifyFailure );
             }
-            else
-            if ( databasePage == pagetype )
+            else if ( databasePage == pagetype )
             {
                 pInfo->dbtime = (unsigned __int64)(cpage.Dbtime());
                 if ( fComputeStructureChecksum )
