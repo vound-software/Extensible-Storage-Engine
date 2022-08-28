@@ -4071,15 +4071,15 @@ ERR CPAGE::ErrValidatePage(
     INT             ibitCorrupted       = -1;
 
     ChecksumAndPossiblyFixPage(
-            m_bfl.pv,
-            CbPage(),
-            databasePage,
-            m_pgno,
-            ( fFixErrors ? fTrue : fFalse ),
-            &checksumStoredInHeader,
-            &checksumComputedOffData,
-            &fCorrectableError,
-            &ibitCorrupted );
+                m_bfl.pv,
+                CbPage(),
+                databasePage,
+                m_pgno,
+                ( fFixErrors ? fTrue : fFalse ),
+                &checksumStoredInHeader,
+                &checksumComputedOffData,
+                &fCorrectableError,
+                &ibitCorrupted );
 
     if( checksumStoredInHeader != checksumComputedOffData )
     {
@@ -4112,6 +4112,7 @@ ERR CPAGE::ErrValidatePage(
         }
 
         Call( err );
+
         err = ErrCheckPage( CPRINTFDBGOUT::PcprintfInstance(), OnErrorReturnError, CheckAll );
 
         //  the page is fine
@@ -4129,6 +4130,7 @@ ERR CPAGE::ErrValidatePage(
     else
     {
     }
+
     // check for pgno (only possible on large pages)
     if ( !FSmallPageFormat() )
     {
