@@ -780,6 +780,7 @@ void AssertDatabaseHeaderConsistent( const DBFILEHDR * const pdbfilehdr, const D
                     &checksumActual );
 
         Assert( checksumExpected == checksumActual );
+        
         if ( pbDbHeaderT != (const BYTE * const)pdbfilehdr )
         {
             OSMemoryPageFree( (VOID*)pbDbHeaderT );
