@@ -178,11 +178,7 @@ int main(int argc, char* argv[]) {
 	unsigned char jetBuffer[JET_BUFFER_SIZE];
 	unsigned long jetSize;
 
-	// char* baseName = "E:\\Code\\Intella\\test2003.edb";
-	// char *baseName = "D:\\private\\edb\\Contracting-Other.edb";
-	char* baseName = "D:\\private\\edb\\International.edb";
-	// char* baseName = "C:\\Code\\Intella\\test2013\\test2013.edb";
-	// char* baseName = "C:\\Code\\Intella\\win10\\Windows.edb";
+	char* edbFilePath = argv[1];
 	char* targetTable;
 	char* tableName;
 	// unsigned int datatableId = 0xffffffff;
@@ -210,27 +206,25 @@ int main(int argc, char* argv[]) {
 	// Initialize ESENT. 
 	// See http://msdn.microsoft.com/en-us/library/windows/desktop/gg269297(v=exchg.10).aspx for error codes
 
-	err = JetGetDatabaseFileInfo(baseName, &dbPageSize, 4, JET_DbInfoPageSize);
+	err = JetGetDatabaseFileInfo(edbFilePath, &dbPageSize, 4, JET_DbInfoPageSize);
 
 	Call(JetSetSystemParameter(0, JET_sesidNil, JET_paramDatabasePageSize, dbPageSize, NULL));
 	Call(JetSetSystemParameter(0, JET_sesidNil, JET_paramEnablePersistedCallbacks, 0, NULL));
 
 	Call(JetCreateInstance(&instance, "edb-instance"));
 	Call(JetSetSystemParameter(&instance, JET_sesidNil, JET_paramRecovery, (JET_API_PTR)L"Off", NULL));
+	Call(JetSetSystemParameter(&instance, JET_sesidNil, JET_paramTempPath, 0, argv[2]));
 
 	Call(JetInit(&instance));
 	Call(JetBeginSession(instance, &sesid, 0, 0));
-	Call(JetAttachDatabase(sesid, baseName, JET_bitDbReadOnly));
+	Call(JetAttachDatabase(sesid, edbFilePath, JET_bitDbReadOnly));
 
-	Call(JetOpenDatabase(sesid, baseName, 0, &dbid, 0));
+	Call(JetOpenDatabase(sesid, edbFilePath, 0, &dbid, 0));
 
 	//Let's enumerate the metadata about datatable (AD table)
 
 	// tableName = "MSysObjects";
-	// tableName = "Msg";
-	tableName = "Body-3a0e-5159BE";
-	tableName = "Body-1-312D54823";
-	// tableName = "MsgHeader-1f11-F7EBB2";
+	tableName = "Msg";
 
 	Call(JetOpenTable(sesid, dbid, tableName, 0, 0, JET_bitTableReadOnly, &tableid));
 
