@@ -3,7 +3,6 @@
 
 // BookStoreSample.c : console application sample of ESE
 //
-
 #include <windows.h>
 #include <stdio.h>
 
@@ -28,7 +27,9 @@
 char szUser []                              = "";
 char szPassword []                          = "";
 
-char szDatabase []                          = "database.mdb";
+// char szDatabase[]                               = "tmp.edb";
+char szDatabase[]                               = "test2007_corrupt_crash.edb";
+// char szDatabase []                          = "database.mdb";
 char szCustomersTable []                        = "Customers";
 char szCustomerID []                            = "CustomerID";
 char szCustomerName []                      = "CustomerName";
@@ -1155,11 +1156,11 @@ HandleError:
 }
 
 
-void __cdecl main2(int argc, char ** argv)
+void __cdecl main(int argc, char ** argv)
 {
 
     JET_ERR                 err                                     = JET_errSuccess;
-    JET_INSTANCE            instance                                    = 0;
+    JET_INSTANCE            instance                                = 0;
     JET_SESID               sesidT                                  = JET_sesidNil;
     JET_DBID                dbidDatabase                            = JET_dbidNil;
 
@@ -1169,6 +1170,9 @@ void __cdecl main2(int argc, char ** argv)
     JET_TABLEID                 tableidOrders                           = JET_tableidNil;
     JET_TABLEID                 tableidBooks                            = JET_tableidNil;
     JET_COLUMNDEF           columndefT;
+
+    char bytes[4] = {0}; // = calloc(4);
+    err = JetGetDatabaseFileInfo(szDatabase, bytes, 4, JET_DbInfoPageSize);
 
     ////////////////////////////////////////////////////////
     //  INITIALIZATION
@@ -1181,13 +1185,14 @@ void __cdecl main2(int argc, char ** argv)
     Call( JetSetSystemParameter( &instance, 0, JET_paramLogFilePath, 0, ".\\" ) );
     Call( JetSetSystemParameter( &instance, 0, JET_paramBaseName, 0, "edb" ) );
     Call( JetSetSystemParameter( &instance, 0, JET_paramEventSource, 0, "query.exe" ) );
-
+    Call( JetSetSystemParameter( &instance, 0, JET_paramDatabasePageSize, 16*1024, NULL));
+    Call( JetSetSystemParameter( &instance, 0, JET_paramEnablePersistedCallbacks, 0, NULL) );
     //  set logging option such that logs unneeded for crash recovery are automatically deleted.
     //  This prevents replaying a backup all the way to the current point in time 
     //  but reduces the need for regular backup to remove log files.
     //
-    Call( JetSetSystemParameter( &instance, 0, JET_paramCircularLog, 1, NULL ) );
-
+    // Call( JetSetSystemParameter( &instance, 0, JET_paramCircularLog, 1, NULL ) );
+    
     //  below system parameters should not need to be set in most cases
     //
     //  Call( JetSetSystemParameter( &instance, 0, JET_paramMaxSessions, 16, NULL ) );
@@ -1208,14 +1213,16 @@ void __cdecl main2(int argc, char ** argv)
 
     //  call JetInit to initialize ESE
     //
-    Call( JetInit( &instance ) );
+    // Call( JetInit( &instance ) );
 
     //  one or more sessions should be begun since all subsequent ESE operations are performed in the context of a session.
     //  A separate session should be opened for each thread using ESE.
     //
-    Call( JetBeginSession( instance, &sesidT, szUser, szPassword ) );
-
-
+    // Call( JetBeginSession( instance, &sesidT, szUser, szPassword ) );
+    err = JetCreateInstance(&instance, "ese-instance");
+    err = JetSetSystemParameter(&instance, 0, JET_paramRecovery, 0, NULL);
+    err = JetInit(&instance);
+    err = JetBeginSession(instance, &sesidT, NULL, NULL);
     ////////////////////////////////////////////////////////
     //  DATA DEFINITION
     //
@@ -1224,7 +1231,14 @@ void __cdecl main2(int argc, char ** argv)
 
     //  look for database and create if not found
     //
-    err = JetAttachDatabase( sesidT, szDatabase, 0 );
+    err = JetAttachDatabase( sesidT, szDatabase, (JET_bitDbRecoveryOff | JET_bitDbReadOnly));
+
+    printf("Attach database %d: ", (int)err);
+
+    if (1) {
+        return;
+    }
+
     if ( JET_errFileNotFound == err )
     {
         Call( JetCreateDatabase( sesidT, szDatabase, NULL, &dbidDatabase, 0 ) );

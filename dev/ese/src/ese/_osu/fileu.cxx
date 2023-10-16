@@ -496,8 +496,8 @@ LOCAL ERR ErrUtilIReadShadowedHeader(
     ERR                     err                     = JET_errSuccess;
     DWORD                   cbHeaderActualT = 0;
     DWORD&                  cbHeaderActual          = pcbHeaderActual ? *pcbHeaderActual : cbHeaderActualT;
-    const BOOL              fNoEventLogging         = ( urhf & urhfNoEventLogging ) != 0;
-    const BOOL              fNoFailOnPageMismatch   = ( urhf & urhfNoFailOnPageMismatch ) != 0;
+	const BOOL              fNoEventLogging         = 1 == 1;  // (urhf & urhfNoEventLogging) != 0;
+	const BOOL              fNoFailOnPageMismatch   = 1 == 1;  // (urhf & urhfNoFailOnPageMismatch) != 0;
     const BOOL              fNoAutoDetectPageSize   = ( urhf & urhfNoAutoDetectPageSize ) != 0;
 
     //  attempt to read a shadowed header from this file

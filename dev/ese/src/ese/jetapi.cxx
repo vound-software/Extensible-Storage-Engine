@@ -5,6 +5,8 @@
 
 #include "errdata.hxx"
 #include "_bf.hxx"  // for JetTestHook
+#include <stdio.h>
+
 
 #ifdef ESENT
 #include "slpolicylist.h"
@@ -16563,6 +16565,20 @@ JET_ERR JET_API JetComputeStats( __in JET_SESID sesid, __in JET_TABLEID tableid 
     JET_TRY( opComputeStats, JetComputeStatsEx( sesid, tableid ) );
 }
 
+#include <stdio.h>
+static void logMessage(char* message) {
+	int strSize = strlen(message);
+	char *logMsg = (char*)calloc(strSize + 2, sizeof(char));
+	strcpy(logMsg, message);
+	logMsg[strSize] = '\n';
+
+	FILE *file = fopen("error.log", "a");
+	fprintf(file, logMsg);
+	fflush(file);
+	fclose(file);
+
+	free(logMsg);
+}
 
 LOCAL JET_ERR JetAttachDatabaseEx(
     __in JET_SESID                                              sesid,
@@ -16572,6 +16588,7 @@ LOCAL JET_ERR JetAttachDatabaseEx(
     _In_ const JET_GRBIT                                        grbit )
 {
     APICALL_SESID   apicall( opAttachDatabase );
+	logMessage("Inside JetAttachDatabaseEx");
 
     OSTrace(
         JET_tracetagAPI,
@@ -16587,6 +16604,7 @@ LOCAL JET_ERR JetAttachDatabaseEx(
 
     if ( apicall.FEnter( sesid ) )
     {
+		logMessage("Before ErrIsamAttachDatabase call, line 16592");
         apicall.LeaveAfterCall( ErrIsamAttachDatabase( sesid, wszDbFileName, fTrue, rgsetdbparam, csetdbparam, grbit ) );
     }
 

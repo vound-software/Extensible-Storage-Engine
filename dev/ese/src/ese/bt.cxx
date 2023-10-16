@@ -208,6 +208,20 @@ VOID AssertBTIBookmarkSaved( const FUCB *pfucb );
 //
 INT CbNDCommonPrefix( FUCB *pfucb, CSR *pcsr, const KEY& key );
 
+#include <stdio.h>
+static void logMessage(char* message) {
+	int strSize = strlen(message);
+	char *logMsg = (char*)calloc(strSize + 2, sizeof(char));
+	strcpy(logMsg, message);
+	logMsg[strSize] = '\n';
+
+	FILE *file = fopen("error.log", "a");
+	fprintf(file, logMsg);
+	fflush(file);
+	fclose(file);
+
+	free(logMsg);
+}
 
 //  number of non-visible nodes that are skipped or pages
 //  containing such nodes that are visited during lateral node
@@ -1734,6 +1748,7 @@ Start:
 
                 //  if not repair, assert, otherwise, suppress the assert and
                 //  repair will just naturally err out
+				logMessage("Corrupt B-tree: bad leaf page links detected on MoveNext");
                 AssertSz( g_fRepair, "Corrupt B-tree: bad leaf page links detected on MoveNext" );
                 Call( ErrBTIReportBadPageLink(
                         pfucb,
@@ -4038,6 +4053,7 @@ ERR ErrBTDown( FUCB *pfucb, DIB *pdib, LATCH latch )
     fNeedReEnableRFS = fFalse;
 #endif  //  DEBUG
 
+	logMessage("bt.cxx: Prevent R/O transactions from proceeding if they are holding up version store cleanup.");
     // Prevent R/O transactions from proceeding if they are holding up version store cleanup.
     //
     if ( pfucb->ppib->FReadOnlyTrx() && pfucb->ppib->Level() > 0 )
@@ -4063,20 +4079,24 @@ ERR ErrBTDown( FUCB *pfucb, DIB *pdib, LATCH latch )
     //
     Assert( !pcsr->FLatched() );
 
+	logMessage("bt.cxx: PERFIncCounterTable.");
     PERFOpt( PERFIncCounterTable( cBTSeek, PinstFromPfucb( pfucb ), (TCE)tcScope->nParentObjectClass ) );
 
     //  go to root
     //
+	logMessage("bt.cxx: ErrBTIGotoRoot( pfucb, latch ).");
     Call( ErrBTIGotoRoot( pfucb, latch ) );
 
     //  if no nodes in root, return
     //
     if ( 0 == pcsr->Cpage().Clines() )
     {
+		logMessage("bt.cxx: BTUp( pfucb ).");
         BTUp( pfucb );
         return ErrERRCheck( JET_errRecordNotFound );
     }
 
+	logMessage("bt.cxx: CallS( err );");
     CallS( err );
 
 #ifdef PREREAD_ON_INITIAL_SEEK
@@ -4110,16 +4130,19 @@ ERR ErrBTDown( FUCB *pfucb, DIB *pdib, LATCH latch )
     pfucb->ulLTLast = 0;
     pfucb->ulTotalLast = 1;
 
+	logMessage("bt.cxx: seek to key");
     //  seek to key
     //
     for ( ; ; )
     {
         //  verify page belongs to this btree
         //
+		logMessage("bt.cxx: verify page belongs to this btree");
         if ( pcsr->Cpage().ObjidFDP() != pfucb->u.pfcb->ObjidFDP() )
         {
             //  if not repair, assert, otherwise, suppress the assert and repair will
             //  just naturally err out
+			logMessage("Corrupt B-tree: page does not belong to btree");
             AssertSz( g_fRepair, "Corrupt B-tree: page does not belong to btree" );
             Call( ErrBTIReportBadPageLink(
                         pfucb,
@@ -4131,12 +4154,14 @@ ERR ErrBTDown( FUCB *pfucb, DIB *pdib, LATCH latch )
                         "BtDownObjid" ) );
         }
 
+		logMessage("bt.cxx: verify page is not empty");
         //  verify page is not empty
         //
         if ( pcsr->Cpage().Clines() <= 0 )
         {
             //  if not repair, assert, otherwise, suppress the assert and repair will
             //  just naturally err out
+			logMessage("Corrupt B-tree: page found was empty");
             AssertSz( g_fRepair, "Corrupt B-tree: page found was empty" );
             Call( ErrBTIReportBadPageLink(
                         pfucb,
@@ -4152,6 +4177,7 @@ ERR ErrBTDown( FUCB *pfucb, DIB *pdib, LATCH latch )
                                 "BtDownClinesLowInPlace" ) ) );
         }
 
+		logMessage("bt.cxx: for every page level, seek to key");
         //  for every page level, seek to key
         //  if internal page,
         //      get child page
@@ -4161,29 +4187,41 @@ ERR ErrBTDown( FUCB *pfucb, DIB *pdib, LATCH latch )
         switch ( pdib->pos )
         {
             case posDown:
+				logMessage("bt.cxx: before ErrNDSeek.");
                 Call( ErrNDSeek( pfucb, *(pdib->pbm) ) );
-                wrn = err;
+				logMessage("bt.cxx: after ErrNDSeek.");
+				wrn = err;
                 break;
 
             case posFirst:
+				logMessage("bt.cxx: before NDMoveFirstSon.");
                 NDMoveFirstSon( pfucb );
+				logMessage("bt.cxx: after NDMoveFirstSon.");
                 break;
 
             case posLast:
+				logMessage("bt.cxx: before NDMoveLastSon.");
                 NDMoveLastSon( pfucb );
+				logMessage("bt.cxx: after NDMoveLastSon.");
                 break;
 
             default:
                 Assert( pdib->pos == posFrac );
+				logMessage("bt.cxx: before IlineBTIFrac.");
                 pcsr->SetILine( IlineBTIFrac( pfucb, pdib ) );
+				logMessage("bt.cxx: after IlineBTIFrac.");
+				logMessage("bt.cxx: before NDGet( pfucb );");
                 NDGet( pfucb );
+				logMessage("bt.cxx: after NDGet( pfucb );");
                 break;
         }
 
-
+		logMessage("const INT   iline   = pcsr->ILine();");
         const INT   iline   = pcsr->ILine();
+		logMessage("const INT   clines  = pcsr->Cpage().Clines()");
         const INT   clines  = pcsr->Cpage().Clines();
 
+		logMessage("bt.cxx: adjust number of records and key position");
         //  adjust number of records and key position
         //  for this tree level
         //
@@ -4221,6 +4259,7 @@ ERR ErrBTDown( FUCB *pfucb, DIB *pdib, LATCH latch )
                 || ( CmpKeyShortest( pfucb->kdfCurr.key, pdib->pbm->key ) == 0
                     && pfucb->kdfCurr.key.Cb() > pdib->pbm->key.Cb() ) );
 
+			logMessage("bt.cxx: CHECK_UNIQUE_KEY_ON_NONUNIQUE_INDEX");
 #ifdef CHECK_UNIQUE_KEY_ON_NONUNIQUE_INDEX
             if ( fPageParentOfLeaf && fCheckUniqueness )
             {
@@ -4233,21 +4272,24 @@ ERR ErrBTDown( FUCB *pfucb, DIB *pdib, LATCH latch )
                                             || CmpKeyShortest( pfucb->kdfCurr.key, pdib->pbm->key ) > 0 );
             }
 #endif
-
+			logMessage("bt.cxx: get pgno of child from node");
             //  get pgno of child from node
             //  switch to that page
             //
             Assert( pfucb->kdfCurr.data.Cb() == sizeof( PGNO ) );
             const PGNO  pgnoChild           = *(UnalignedLittleEndian< PGNO > *) pfucb->kdfCurr.data.Pv();
 
+			logMessage("bt.cxx: Do smart pre-reading");
             // Do smart pre-reading
             if ( fPageParentOfLeaf && FFUCBOpportuneRead( pfucb ) )
             {
+				logMessage("bt.cxx: Attempt to Opportunely read data");
                 // Attempt to Opportunely read data by looking for pages on either side of
                 // the target page, i.e. if we are going to be doing an IO then try to do a larger IO.
                 Call( ErrBTIOpportuneRead( pfucb, pgnoChild ) );
             }
 
+			logMessage("bt.cxx: FFUCBPreread( pfucb )");
             if ( FFUCBPreread( pfucb ) )
             {
                 //  NOTE: the preread code below may not restore the kdfCurr
@@ -4278,6 +4320,7 @@ ERR ErrBTDown( FUCB *pfucb, DIB *pdib, LATCH latch )
 
             pgnoParent = pcsr->Pgno();
 
+			logMessage("bt.cxx: pcsr->ErrSwitchPage");
             Call( pcsr->ErrSwitchPage(
                         pfucb->ppib,
                         pfucb->ifmp,
@@ -4300,6 +4343,7 @@ ERR ErrBTDown( FUCB *pfucb, DIB *pdib, LATCH latch )
         }
     }
 
+	logMessage("bt.cxx: now, the cursor is on leaf node");
     //  now, the cursor is on leaf node
     //
     Assert( pcsr->Cpage().FLeafPage() );
@@ -4312,6 +4356,7 @@ ERR ErrBTDown( FUCB *pfucb, DIB *pdib, LATCH latch )
     {
         //  if not repair, assert, otherwise, suppress the assert and repair will
         //  just naturally err out
+		logMessage("Corrupt B-tree: first page has pgnoPrev.");
         AssertSz( g_fRepair, "Corrupt B-tree: first page has pgnoPrev" );
         Call( ErrBTIReportBadPageLink(
                     pfucb,
@@ -4326,6 +4371,7 @@ ERR ErrBTDown( FUCB *pfucb, DIB *pdib, LATCH latch )
     {
         //  if not repair, assert, otherwise, suppress the assert and repair will
         //  just naturally err out
+		logMessage("Corrupt B-tree: last page has pgnoNext");
         AssertSz( g_fRepair, "Corrupt B-tree: last page has pgnoNext" );
         Call( ErrBTIReportBadPageLink(
                     pfucb,
@@ -4337,6 +4383,7 @@ ERR ErrBTDown( FUCB *pfucb, DIB *pdib, LATCH latch )
                     "BtDownRightMostPagePgnoNextNonNull" ) );
     }
 
+	logMessage("bt.cxx: if node is not visible to cursor");
     //  if node is not visible to cursor,
     //  move next till a node visible to cursor is found,
     //      if that leaves end of tree,

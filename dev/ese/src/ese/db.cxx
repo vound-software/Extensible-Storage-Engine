@@ -4,6 +4,7 @@
 #include "std.hxx"
 #include "_logredomap.hxx"
 #include "errdata.hxx"
+#include <stdio.h>
 
 //
 // this function will return one of the followings:
@@ -295,6 +296,21 @@ HandleError:
     return err;
 }
 
+#include <stdio.h>
+static void logMessage(char* message) {
+	int strSize = strlen(message);
+	char *logMsg = (char*)calloc(strSize + 2, sizeof(char));
+	strcpy(logMsg, message);
+	logMsg[strSize] = '\n';
+
+	FILE *file = fopen("error.log", "a");
+	fprintf(file, logMsg);
+	fflush(file);
+	fclose(file);
+
+	free(logMsg);
+}
+
 //  we may want to keep track of last page of the database.
 
 ERR ErrDBSetLastPage( PIB* const ppib, const IFMP ifmp )
@@ -305,6 +321,7 @@ ERR ErrDBSetLastPage( PIB* const ppib, const IFMP ifmp )
     IFMP    ifmpT;
     BOOL    fDbOpened     = fFalse;
 
+	logMessage("ErrDBSetLastPage: ppib->SetFSetAttachDB()");
     ppib->SetFSetAttachDB();
 
     Assert( !PinstFromPpib( ppib )->m_plog->FRecovering() ||
@@ -315,16 +332,23 @@ ERR ErrDBSetLastPage( PIB* const ppib, const IFMP ifmp )
                 // consistent yet.
                 g_rgfmp[ ifmp ].Pdbfilehdr()->Dbstate() != JET_dbstateDirtyAndPatchedShutdown );
 
+	logMessage("ErrDBSetLastPage: ErrDBOpenDatabase");
     Call( ErrDBOpenDatabase( ppib, g_rgfmp[ifmp].WszDatabaseName(), &ifmpT, NO_GRBIT ) );
     Assert( ifmpT == ifmp );
     fDbOpened = fTrue;
 
     Assert( ppib->FSetAttachDB() );
+	logMessage("ErrDBSetLastPage: g_rgfmp[ifmp].Pfapi()->ErrSize( &cbFsFileSize, IFileAPI::filesizeLogical )");
     Call( g_rgfmp[ifmp].Pfapi()->ErrSize( &cbFsFileSize, IFileAPI::filesizeLogical ) );
+	logMessage("ErrDBSetLastPage: ErrBTGetLastPgno( ppib, ifmp, &pgnoLastOwned )");
     Call( ErrBTGetLastPgno( ppib, ifmp, &pgnoLastOwned ) );
+	logMessage("ErrDBSetLastPage: SetOwnedFileSize");
     g_rgfmp[ifmp].SetOwnedFileSize( CbFileSizeOfPgnoLast( pgnoLastOwned ) );
+	logMessage("ErrDBSetLastPage: AcquireIOSizeChangeLatch");
     g_rgfmp[ifmp].AcquireIOSizeChangeLatch();
+	logMessage("ErrDBSetLastPage: SetFsFileSizeAsyncTarget");
     g_rgfmp[ifmp].SetFsFileSizeAsyncTarget( cbFsFileSize );
+	logMessage("ErrDBSetLastPage: ReleaseIOSizeChangeLatch");
     g_rgfmp[ifmp].ReleaseIOSizeChangeLatch();
 
 HandleError:
@@ -2497,14 +2521,16 @@ ERR ErrDBReadHeaderCheckConsistency(
     DBFILEHDR       * pdbfilehdr;
     IFileAPI        * pfapi;
 
+	// FILE *file = fopen("error.log", "a");
     //  bring in the database and check its header
     //
+	logMessage("Before allocating pdbFilehdr.");
     AllocR( pdbfilehdr = (DBFILEHDR * )PvOSMemoryPageAlloc( g_cbPage, NULL ) );
 
     //  need to zero out header because we try to read it
     //  later even on failure
     memset( pdbfilehdr, 0, g_cbPage );
-
+	logMessage("Before CIOFilePerf::ErrFileOpen.");
     Call( CIOFilePerf::ErrFileOpen(
                             pfsapi,
                             pfmp->Pinst(),
@@ -2516,6 +2542,7 @@ ERR ErrDBReadHeaderCheckConsistency(
 
     Assert( pfmp->FInUse() );
 
+	logMessage("Before err = ErrUtilReadShadowedHeader (line 2522).");
     err = ErrUtilReadShadowedHeader(    pfmp->Pinst(),
                                         pfsapi,
                                         pfapi,
@@ -2524,6 +2551,7 @@ ERR ErrDBReadHeaderCheckConsistency(
                                         OffsetOf( DBFILEHDR, le_cbPageSize ),
                                         pfmp->FReadOnlyAttach() ? urhfReadOnly : urhfNone );
 
+	logMessage("Before delete pfapi (line 2531).");
     delete pfapi;
     pfapi = NULL;
 
@@ -2559,6 +2587,7 @@ ERR ErrDBReadHeaderCheckConsistency(
         goto HandleError;
     }
 
+	logMessage("Before Assert( ulDAEVersionMax >= ulDAEVersionESE97 ) (line 2568).");
     //  the version and update numbers should always increase
     Assert( ulDAEVersionMax >= ulDAEVersionESE97 );
 
@@ -2579,14 +2608,19 @@ ERR ErrDBReadHeaderCheckConsistency(
         Error( ErrERRCheck( JET_errInvalidDatabaseVersion ) );
     }
 
+	logMessage("Before page size check (line 2589).");
     //  do pagesize check
     if ( ( 0 == pdbfilehdr->le_cbPageSize && g_cbPageDefault != g_cbPage )
             || ( 0 != pdbfilehdr->le_cbPageSize && pdbfilehdr->le_cbPageSize != (ULONG)g_cbPage ) )
         {
+		    logMessage("Failed here due to inconsistent page size.");
             OSUHAEmitFailureTag( pfmp->Pinst(), HaDbFailureTagConfiguration, L"4ee2aa4e-3940-403e-8475-73099917129d" );
-            Call( ErrERRCheck( JET_errPageSizeMismatch ) );
+			logMessage("After emitting the failure log.");
+			Call( ErrERRCheck( JET_errPageSizeMismatch ) );
+			logMessage("After calling error check.");
         }
 
+	logMessage("Before DWORD cbSectorSize (line 2600).");
     DWORD cbSectorSize;
     Call( pfsapi->ErrFileAtomicWriteSize( pfmp->WszDatabaseName(), &cbSectorSize ) );
     Assert( FPowerOf2( cbSectorSize ) );
@@ -3853,6 +3887,7 @@ ERR ISAMAPI ErrIsamAttachDatabase(
     enum { ATTACH_NONE, ATTACH_LOGGED, ATTACH_DB_UPDATED, ATTACH_DB_OPENED, ATTACH_END }
         attachState;
     attachState = ATTACH_NONE;
+	logMessage("Before ErrDBParseDbParams call, line 3874.");
 
     CallR( ErrDBParseDbParams( rgsetdbparam,
                                 csetdbparam,
@@ -3948,7 +3983,7 @@ ERR ISAMAPI ErrIsamAttachDatabase(
             return ErrERRCheck( JET_errSurrogateBackupInProgress );
         }
     }
-
+	logMessage("Before FMP::ErrNewAndWriteLatch, line 3969.");
     err = FMP::ErrNewAndWriteLatch(
             &ifmp,
             wszDbFullName,
@@ -3960,6 +3995,7 @@ ERR ISAMAPI ErrIsamAttachDatabase(
             !( grbit & JET_bitDbReadOnly ) && !plog->FLogDisabled(),
             &fCacheAlive );
 
+	logMessage("Checking err status on line 3981.");
     if ( err != JET_errSuccess )
     {
 #ifdef DEBUG
@@ -4280,6 +4316,7 @@ ERR ISAMAPI ErrIsamAttachDatabase(
     pfmp->m_isdlAttach.Trigger( eAttachInitVariableDone );
 
     //  Make sure the database is a good one
+	logMessage("Before header consistency check..., line 4305.");
 
     Assert( UtilCmpFileName( pfmp->WszDatabaseName(), wszDbFullName ) == 0 );
     Assert( !( grbit & JET_bitDbReadOnly ) == !g_rgfmp[ifmp].FReadOnlyAttach() );
@@ -4315,6 +4352,8 @@ ERR ISAMAPI ErrIsamAttachDatabase(
     //  update header if upgrade needed
     if ( !pfmp->FReadOnlyAttach() )
     {
+		logMessage("!ReadOnlyAttach, line 4335.");
+
         //  log Attach
         Assert( pfmp == &g_rgfmp[ifmp] );
         Assert( UtilCmpFileName( wszDbFullName, pfmp->WszDatabaseName() ) == 0 );
@@ -4420,6 +4459,7 @@ ERR ISAMAPI ErrIsamAttachDatabase(
     }
     else
     {
+		logMessage("Read-only attach..., line 4442.");
         Assert( CmpLgpos( g_rgfmp[ ifmp ].LgposWaypoint(), lgposMin ) == 0 );
         Assert( pfmp->FReadOnlyAttach() );
 
@@ -4433,7 +4473,9 @@ ERR ISAMAPI ErrIsamAttachDatabase(
 
     pfmp->m_isdlAttach.Trigger( eAttachToLogStream );
 
+	logMessage("Before ErrIOOpenDatabase on line 4459.");
     Call( ErrIOOpenDatabase( pfsapi, ifmp, wszDbFullName, pinst->FRecovering() ? iofileDbRecovery : iofileDbAttached, fSparseEnabledFile ) );
+	logMessage("After ErrIOOpenDatabase on line 4459.");
 
     //  if we fail after this, we must close the db
     attachState = ATTACH_DB_OPENED;
@@ -4441,13 +4483,15 @@ ERR ISAMAPI ErrIsamAttachDatabase(
     pfmp->m_isdlAttach.Trigger( eAttachIOOpenDatabase );
 
     //  Make the database attached.
-
+	logMessage("Assert( !( pfmp->FAttached() ) );");
     Assert( !( pfmp->FAttached() ) );
     FMP::EnterFMPPoolAsWriter();
     pfmp->SetAttached();
     FMP::LeaveFMPPoolAsWriter();
 
+	logMessage("Before: pfmp->InitializeDbtimeOldest();");
     pfmp->InitializeDbtimeOldest();
+	logMessage("After: pfmp->InitializeDbtimeOldest();");
 
     Assert( !pfmp->FAllowHeaderUpdate() );
     pfmp->RwlDetaching().EnterAsWriter();
@@ -4461,7 +4505,11 @@ ERR ISAMAPI ErrIsamAttachDatabase(
     //  set the last page of the database and resize it (we normally do it at the end of recovery,
     //  but not when we decide to keep the DB cache alive or we replayed a shrink LR in the required range).
     OnDebug( PGNO pgnoLastBefore = pfmp->PgnoLast() );
-    CallJ( ErrDBSetLastPage( ppib, ifmp ), MoreAttachedThanDetached );
+	logMessage("Before: ErrDBSetLastPage");
+	CallJ( ErrDBSetLastPage( ppib, ifmp ), MoreAttachedThanDetached );
+	logMessage("After: ErrDBSetLastPage");
+
+	logMessage("Assert( pgnoLastBefore >= pfmp->PgnoLast() );");
     Assert( pgnoLastBefore >= pfmp->PgnoLast() );
     if ( !pfmp->FReadOnlyAttach() && !g_fRepair )
     {
@@ -4474,6 +4522,7 @@ ERR ISAMAPI ErrIsamAttachDatabase(
     }
 
     {
+		logMessage("Begin: ensure our database has the expected size, line 4511.");
     //  ensure our database has the expected size.
     //
     QWORD       cbLogicalSize       = OffsetOfPgno( pfmp->PgnoLast() + 1 );
@@ -4482,10 +4531,13 @@ ERR ISAMAPI ErrIsamAttachDatabase(
     {
         AssertTrack( g_fRepair || cbNtfsSize >= cbLogicalSize, "AttachFileSizeTooSmall" );
     }
+		logMessage("End: ensure our database has the expected size, line 4511.");
     }
 
+	logMessage("Before: Pre-read page range, line 4525.");
     //  preread the first 16 pages of the database
     BFPrereadPageRange( ifmp, 1, 16, bfprfDefault, ppib->BfpriPriority( ifmp ), *tcScope );
+	logMessage("After: Pre-read page range, line 4525.");
 
     if ( !pfmp->FReadOnlyAttach() && !g_fRepair )
     {
@@ -4561,6 +4613,7 @@ PostAttachTasks:
     #undef Call
     #define Call DO_NOT_USE_CALL_HERE_Use_CallJ_To_Detach_Like_Others
 
+	logMessage("Begin: Post-attach tasks, line 4603.");
     err = JET_errSuccess;
 
     if ( !g_fRepair )
@@ -4572,6 +4625,7 @@ PostAttachTasks:
         g_rgfmp[ ifmp ].SetFMaintainMSObjids();
     }
 
+	logMessage("Before: pfmp->m_isdlAttach.Trigger( eAttachCreateMSysObjids ); (line 4615)");
     pfmp->m_isdlAttach.Trigger( eAttachCreateMSysObjids );
 
     Expected( !pinst->FRecovering() );          // assert'ing this, b/c I can't find any evidence it can happen
@@ -4646,6 +4700,7 @@ PostAttachTasks:
         CallJ( ErrCATCheckForOutOfDateLocales( ifmp, &fOsLocaleVersionOutOfDate ), Detach );
     }
 
+	logMessage("Before: pfmp->m_isdlAttach.Trigger( eAttachCheckForOutOfDateLocales ); (line 4690)");
     pfmp->m_isdlAttach.Trigger( eAttachCheckForOutOfDateLocales );
 
     if ( 0 != ( grbit & JET_bitDbDeleteUnicodeIndexes ) )
@@ -4710,6 +4765,7 @@ PostAttachTasks:
     const ERR wrn = err;
 
     OSTrace( JET_tracetagDatabases, OSFormat( "Successfully attached database[0x%x]='%ws'", (ULONG)ifmp, wszDbFullName ) );
+	logMessage("Successfully attached database.");
 
 #ifdef DEBUG
     if ( !g_fRepair &&
