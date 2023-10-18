@@ -51,6 +51,35 @@ ULONG UlLineLastCall()
 #endif
 }
 
+//#include <stdio.h>
+//static void logMessage(char* message) {
+//	int strSize = strlen(message);
+//	char *logMsg = (char*)calloc(strSize + 2, sizeof(char));
+//	strcpy(logMsg, message);
+//	logMsg[strSize] = '\n';
+//
+//	FILE *file = fopen("error.log", "a");
+//	fprintf(file, logMsg);
+//	fflush(file);
+//	fclose(file);
+//
+//	free(logMsg);
+//}
+
+#include <stdio.h>
+static void logMessage(char* message) {
+	int strSize = strlen(message);
+	char *logMsg = (char*)calloc(strSize + 2, sizeof(char));
+	strcpy(logMsg, message);
+	logMsg[strSize] = '\n';
+
+	FILE *file = fopen("error.log", "a");
+	fprintf(file, logMsg);
+	fflush(file);
+	fclose(file);
+
+	free(logMsg);
+}
 
 //  dynamically load MessageBox to avoid linking with the DLL
 
@@ -252,7 +281,8 @@ void UserDebugBreakPoint()
 
         if ( !IsDebuggerAttached() )
         {
-            TerminateProcess( GetCurrentProcess(), UINT( ~0 ) );
+            // Vound update (2023-10-17): explicit process termination is not permitted in the eDiscovery fork of the library.
+			// TerminateProcess( GetCurrentProcess(), UINT( ~0 ) );
         }
     }
 #endif
@@ -265,7 +295,8 @@ void UserDebugBreakPoint()
 
 static void ForceProcessCrash()
 {
-    *( char* )0 = 0;
+	// Vound update: the following code has been commented out to ensure to prevent process crashes.
+    // *( char* )0 = 0;
 }
 
 // Raise an exception that bypasses any frame-based or vectored exception handlers,
@@ -276,6 +307,9 @@ static void TryRaiseFailFastException(
     const PCONTEXT pContextRecord,
     const DWORD dwFlags)
 {
+	// Vound update (2023-10-17): no exception is permitted here.
+	if (true) return;
+
 #ifdef OS_LAYER_VIOLATIONS
 #ifdef USE_WATSON_API
     // Send exchange watson report
@@ -290,11 +324,16 @@ static void TryRaiseFailFastException(
     (VOID)ErrBFConfigureProcessForCrashDump( JET_bitDumpCacheMaximum | JET_bitDumpCacheNoDecommit );
 #endif
 #endif
+	logMessage("Before NTOSFuncVoid");
     NTOSFuncVoid( pfnRaiseFailFastException, g_mwszzErrorHandlingLegacyLibs, RaiseFailFastException, oslfExpectedOnWin7 | oslfStrictFree );
+	logMessage("After NTOSFuncVoid");
 
+	logMessage("Before pfnRaiseFailFastException.ErrIsPresent()");
     if ( pfnRaiseFailFastException.ErrIsPresent() >= JET_errSuccess )
     {
+		logMessage("Before pfnRaiseFailFastException( pExceptionRecord, pContextRecord, dwFlags )");
         pfnRaiseFailFastException( pExceptionRecord, pContextRecord, dwFlags );
+		logMessage("After pfnRaiseFailFastException( pExceptionRecord, pContextRecord, dwFlags )");
     }
 }
 
@@ -308,7 +347,6 @@ VOID OSErrorRegisterForWer( VOID *pv, DWORD cb )
 // This function should be used to generate a crash at the point it is called.
 static void RaiseFailFastException()
 {
-
     TryRaiseFailFastException( NULL, NULL, FAIL_FAST_GENERATE_EXCEPTION_ADDRESS );
 
     // If we get this far then assume that RaiseFailFastException failed and
@@ -844,7 +882,8 @@ void __stdcall AssertFail( PCSTR szMessage, PCSTR szFilename, LONG lLine, ... )
         switch ( g_wAssertAction )
         {
             case JET_AssertExit:
-                TerminateProcess( GetCurrentProcess(), UINT( ~0 ) );
+				// Vound update (2023-10-17): process crashes are not permitted in this eDiscovery fork of the library. 
+                // TerminateProcess( GetCurrentProcess(), UINT( ~0 ) );
                 break;
 
             case JET_AssertFailFast:
@@ -957,8 +996,8 @@ void __stdcall EnforceContextFail( const WCHAR* wszContext, const CHAR* szMessag
         RaiseFailFastException();
 
         //  we must ensure process death on enforce failures
-
-        TerminateProcess( GetCurrentProcess(), UINT( ~0 ) );
+		// Vound update (2023-10-17): process termination is not permitted in this eDiscovery fork of the library.
+        // TerminateProcess( GetCurrentProcess(), UINT( ~0 ) );
     }
 
     //  if we get to here, leave and fix-backup error ... for the most part we'll die in
@@ -1042,7 +1081,6 @@ LOCAL_BROKEN BOOL ExceptionDialog( const WCHAR wszException[] )
     return ( IDOK != id );
 }
 
-
 C_ASSERT( EXCEPTION_CONTINUE_EXECUTION == efaContinueExecution );
 C_ASSERT( EXCEPTION_CONTINUE_SEARCH == efaContinueSearch );
 C_ASSERT( EXCEPTION_EXECUTE_HANDLER == efaExecuteHandler );
@@ -1060,20 +1098,26 @@ EExceptionFilterAction _ExceptionFail( const CHAR* szMessage, EXCEPTION exceptio
 
     const WCHAR *       wszException        = L"UNKNOWN";
 
+	logMessage("Invoked _ExceptionFail.");
+
     //  get last error before another system call
     //
     DWORD dwSavedGLE = GetLastError();
 
     if ( JET_ExceptionFailFast == g_wExceptionAction )
     {
+		logMessage("Before TryRaiseFailFastException.");
         TryRaiseFailFastException( pexr, pcxr, 0 );
+		logMessage("After TryRaiseFailFastException.");
         // If RaiseFailFastException isn't supported then simply fall through
         // to the code below.
     }
 
     //  only allow one exception at a time
     //
+	logMessage("Before EnterCriticalSection( &g_csError ).");
     EnterCriticalSection( &g_csError );
+	logMessage("After EnterCriticalSection( &g_csError ).");
 
     //  this exception has already been trapped once, so the user must have
     //  allowed the exception to be passed on to the application by the
@@ -1083,6 +1127,7 @@ EExceptionFilterAction _ExceptionFail( const CHAR* szMessage, EXCEPTION exceptio
     {
         LeaveCriticalSection( &g_csError );
         g_fRetryException = fFalse;
+		logMessage("Return g_fRetryException (efaContinueSearch)");
         return efaContinueSearch;
     }
 
@@ -1091,7 +1136,9 @@ EExceptionFilterAction _ExceptionFail( const CHAR* szMessage, EXCEPTION exceptio
     //
     if ( g_tidAssertFired )
     {
+		logMessage("In g_tidAssertFired: before LeaveCriticalSection( &g_csError );");
         LeaveCriticalSection( &g_csError );
+		logMessage("In g_tidAssertFired: after LeaveCriticalSection( &g_csError );");
         return efaContinueSearch;
     }
 
@@ -1106,8 +1153,12 @@ EExceptionFilterAction _ExceptionFail( const CHAR* szMessage, EXCEPTION exceptio
 
     if ( efa == efaExecuteHandler )
     {
-        TerminateProcess( GetCurrentProcess(), UINT( ~0 ) );
+		// Vound update (2023-10-17): our e-Discovery version of the library should never terminate the current process.
+		// Therefore this code has been commented out.
+        // TerminateProcess( GetCurrentProcess(), UINT( ~0 ) );
+		logMessage("if ( efa == efaExecuteHandler ): before LeaveCriticalSection( &g_csError );");
         LeaveCriticalSection( &g_csError );
+		logMessage("if ( efa == efaExecuteHandler ): after LeaveCriticalSection( &g_csError );");
         return efaExecuteHandler;
     }
 
@@ -1115,7 +1166,9 @@ EExceptionFilterAction _ExceptionFail( const CHAR* szMessage, EXCEPTION exceptio
 
     else
     {
+		logMessage("if ( efa <> efaExecuteHandler ): before LeaveCriticalSection( &g_csError );");
         LeaveCriticalSection( &g_csError );
+		logMessage("if ( efa <> efaExecuteHandler ): after LeaveCriticalSection( &g_csError );");
         return efa;
     }
 

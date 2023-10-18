@@ -1621,6 +1621,20 @@ ERR ErrSPIOpenOwnExt( PIB *ppib, FCB *pfcb, FUCB **ppfucbOE )
     return err;
 }
 
+#include <stdio.h>
+static void logMessage(char* message) {
+	int strSize = strlen(message);
+	char *logMsg = (char*)calloc(strSize + 2, sizeof(char));
+	strcpy(logMsg, message);
+	logMsg[strSize] = '\n';
+
+	FILE *file = fopen("error.log", "a");
+	fprintf(file, logMsg);
+	fflush(file);
+	fclose(file);
+
+	free(logMsg);
+}
 
 //  gets pgno of last page owned by database
 //
@@ -1629,8 +1643,10 @@ ERR ErrSPGetLastPgno( _Inout_ PIB * ppib, _In_ const IFMP ifmp, _Out_ PGNO * ppg
     ERR err;
     EXTENTINFO extinfo;
 
+	logMessage("Before: space.cxx/ErrSPGetLastPgno: ErrSPGetLastExtent( ppib, ifmp, &extinfo )");
     Call( ErrSPGetLastExtent( ppib, ifmp, &extinfo ) );
-    *ppgno = extinfo.PgnoLast();
+	logMessage("After: space.cxx/ErrSPGetLastPgno: ErrSPGetLastExtent( ppib, ifmp, &extinfo )");
+	*ppgno = extinfo.PgnoLast();
 
 HandleError:
     return err;
@@ -1646,16 +1662,23 @@ ERR ErrSPGetLastExtent( _Inout_ PIB * ppib, _In_ const IFMP ifmp, _Out_ EXTENTIN
     FUCB    *pfucbOE = pfucbNil;
     DIB     dib;
 
+	logMessage("space.cxx/ErrSPGetLastExtent: before ErrBTOpen( ppib, pgnoSystemRoot, ifmp, &pfucb, openNormal, fTrue ).");
     CallR( ErrBTOpen( ppib, pgnoSystemRoot, ifmp, &pfucb, openNormal, fTrue ) );
-    Assert( pfucbNil != pfucb );
+	logMessage("space.cxx/ErrSPGetLastExtent: after ErrBTOpen( ppib, pgnoSystemRoot, ifmp, &pfucb, openNormal, fTrue ).");
+	Assert( pfucbNil != pfucb );
 
+	logMessage("space.cxx/ErrSPGetLastExtent: before pfucb->ppib->InitTraceContextScope().");
     PIBTraceContextScope tcScope = pfucb->ppib->InitTraceContextScope();
-    tcScope->nParentObjectClass = TceFromFUCB( pfucb );
+	logMessage("space.cxx/ErrSPGetLastExtent: after pfucb->ppib->InitTraceContextScope().");
+
+	tcScope->nParentObjectClass = TceFromFUCB( pfucb );
     tcScope->SetDwEngineObjid( ObjidFDP( pfucb ) );
     tcScope->iorReason.SetIort( iortSpace );
 
+	logMessage("space.cxx/ErrSPGetLastExtent: before PinstFromPpib( ppib )->FRecovering() && !pfucb->u.pfcb->FSpaceInitialized().");
     if ( PinstFromPpib( ppib )->FRecovering() && !pfucb->u.pfcb->FSpaceInitialized() )
     {
+		logMessage("space.cxx/ErrSPGetLastExtent: before ErrSPInitFCB( pfucb )");
         //  pgnoOE and pgnoAE need to be obtained
         //
         Call( ErrSPInitFCB( pfucb ) );
@@ -1666,23 +1689,31 @@ ERR ErrSPGetLastExtent( _Inout_ PIB * ppib, _In_ const IFMP ifmp, _Out_ EXTENTIN
     }
     Assert( pfucb->u.pfcb->FSpaceInitialized() );
 
+	logMessage("space.cxx/ErrSPGetLastExtent: before ErrSPIOpenOwnExt( ppib, pfucb->u.pfcb, &pfucbOE )");
     Call( ErrSPIOpenOwnExt( ppib, pfucb->u.pfcb, &pfucbOE ) );
+	logMessage("space.cxx/ErrSPGetLastExtent: after ErrSPIOpenOwnExt( ppib, pfucb->u.pfcb, &pfucbOE )");
 
     dib.dirflag = fDIRNull;
     dib.pos     = posLast;
     dib.pbm     = NULL;
-    err = ErrBTDown( pfucbOE, &dib, latchReadTouch );
+    
+	logMessage("space.cxx/ErrSPGetLastExtent: before ErrBTDown( pfucbOE, &dib, latchReadTouch )");
+	err = ErrBTDown( pfucbOE, &dib, latchReadTouch );
+	logMessage("space.cxx/ErrSPGetLastExtent: after ErrBTDown( pfucbOE, &dib, latchReadTouch )");
 
     // We must have at least one owned extent.
     if ( ( err == JET_errNoCurrentRecord ) || ( err == JET_errRecordNotFound ) )
     {
+		logMessage("space.cxx/ErrSPGetLastExtent: no current record.");
         FireWall( "GetDbLastExtNoOwned" );
+		logMessage("space.cxx/ErrSPGetLastExtent: after fire wall.");
         Error( ErrERRCheck( JET_errSPOwnExtCorrupted ) );
     }
 
     Call( err );
 
     {
+		logMessage("space.cxx/ErrSPGetLastExtent: const CSPExtentInfo spLastOE( pfucbOE );");
     const CSPExtentInfo spLastOE( pfucbOE );
     Assert( spLastOE.FIsSet() && ( spLastOE.CpgExtent() > 0 ) );
     pextinfo->pgnoLastInExtent = spLastOE.PgnoLast();
@@ -1695,11 +1726,16 @@ ERR ErrSPGetLastExtent( _Inout_ PIB * ppib, _In_ const IFMP ifmp, _Out_ EXTENTIN
 HandleError:
     if ( pfucbOE != pfucbNil )
     {
+		logMessage("space.cxx/ErrSPGetLastExtent: before BTClose( pfucbOE )");
         BTClose( pfucbOE );
+		logMessage("space.cxx/ErrSPGetLastExtent: after BTClose( pfucbOE )");
     }
 
     Assert ( pfucb != pfucbNil );
+
+	logMessage("space.cxx/ErrSPGetLastExtent: before BTClose( pfucb )");
     BTClose( pfucb );
+	logMessage("space.cxx/ErrSPGetLastExtent: after BTClose( pfucb )");
 
     return err;
 }

@@ -34,6 +34,20 @@ The item that a currency references must be there
 
 #endif  // DEBUG
 
+#include <stdio.h>
+static void logMessage(char* message) {
+	int strSize = strlen(message);
+	char *logMsg = (char*)calloc(strSize + 2, sizeof(char));
+	strcpy(logMsg, message);
+	logMsg[strSize] = '\n';
+
+	FILE *file = fopen("error.log", "a");
+	fprintf(file, logMsg);
+	fflush(file);
+	fclose(file);
+
+	free(logMsg);
+}
 
 //  ****************************************************************
 //  CONSTANTS
@@ -143,7 +157,9 @@ template< PageNodeBoundsChecking pgnbc >
 LOCAL VOID NDILineToKeydataflags( const CPAGE& cpage, const LINE * pline, KEYDATAFLAGS * pkdf, _Out_opt_ ERR * perrNoEnforce )
 //  ================================================================
 {
+	logMessage("node.cxx/NDILineToKeydataflags: entered the function");
     const BYTE  *pb             = (BYTE*)pline->pv;
+	logMessage("node.cxx/NDILineToKeydataflags: after const BYTE  *pb             = (BYTE*)pline->pv;");
     INT         cbKeyCountTotal = cbKeyCount;
 
     Expected( ( pgnbc == pgnbcChecked ) == ( perrNoEnforce != NULL ) );
@@ -153,24 +169,34 @@ LOCAL VOID NDILineToKeydataflags( const CPAGE& cpage, const LINE * pline, KEYDAT
 
     typedef UnalignedLittleEndian< USHORT >* PULEUS;
 
+	logMessage("node.cxx/NDILineToKeydataflags: before pline->fFlags & fNDCompressed");
     if ( pline->fFlags & fNDCompressed )
     {
         //  prefix key compressed
+		logMessage("node.cxx/NDILineToKeydataflags: pkdf->key.prefix.SetCb( *( PULEUS )pb & usNDCbKeyMask );");
         pkdf->key.prefix.SetCb( *( PULEUS )pb & usNDCbKeyMask );
+		logMessage("node.cxx/NDILineToKeydataflags: after pkdf->key.prefix.SetCb( *( PULEUS )pb & usNDCbKeyMask );");
+
         pb += cbPrefixOverhead;
         cbKeyCountTotal += cbPrefixOverhead;
     }
     else
     {
+		logMessage("node.cxx/NDILineToKeydataflags: before no prefix compression");
         //  no prefix compression
         pkdf->key.prefix.SetCb( 0 );
+		logMessage("node.cxx/NDILineToKeydataflags: after no prefix compression");
     }
 
+	logMessage("node.cxx/NDILineToKeydataflags: before const USHORT cbSuffix = *( PULEUS )pb & usNDCbKeyMask;");
     const USHORT cbSuffix = *( PULEUS )pb & usNDCbKeyMask;
+	logMessage("node.cxx/NDILineToKeydataflags: after const USHORT cbSuffix = *( PULEUS )pb & usNDCbKeyMask;");
 
+	logMessage("node.cxx/NDILineToKeydataflags: before pkdf->key.suffix.SetCb( cbSuffix );");
     pkdf->key.suffix.SetCb( cbSuffix );
+	logMessage("node.cxx/NDILineToKeydataflags: after pkdf->key.suffix.SetCb( cbSuffix );");
     pkdf->key.suffix.SetPv( const_cast<BYTE *>( pb ) + cbKeyCount );
-
+	logMessage("node.cxx/NDILineToKeydataflags: after pkdf->key.suffix.SetPv( const_cast<BYTE *>( pb ) + cbKeyCount );");
     //  In theory we would never create such a situation, so if this happens it is either
     //  an in-memory corruption, or ESE bug.  Either way we're hosed if we continue.
 
@@ -204,7 +230,9 @@ LOCAL VOID NDILineToKeydataflags( const CPAGE& cpage, const LINE * pline, KEYDAT
             if ( perrNoEnforce == NULL )
             {
                 //  client doesn't know / have path to handle error yet.
+				logMessage("node.cxx/NDILineToKeydataflags: before PageEnforce");
                 PageEnforce( cpage, cbSuffix < pline->cb );
+				logMessage("node.cxx/NDILineToKeydataflags: after PageEnforce");
 #ifdef DEBUG
                 PageEnforce( cpage, cbSuffix < ( pline->cb - cbKeyCountTotal ) );
 #endif
@@ -221,8 +249,12 @@ LOCAL VOID NDILineToKeydataflags( const CPAGE& cpage, const LINE * pline, KEYDAT
     PageAssertTrack( cpage, ( ( pline->cb - pkdf->key.suffix.Cb() - cbKeyCountTotal ) > 0 ) || ( perrNoEnforce && *perrNoEnforce < JET_errSuccess ), "KeySizesCheckVsErrStateInconsistent" );
 #endif
 
+	logMessage("node.cxx/NDILineToKeydataflags: before setCb");
     pkdf->data.SetCb( pline->cb - pkdf->key.suffix.Cb() - cbKeyCountTotal );
-    pkdf->data.SetPv( const_cast<BYTE *>( pb ) + cbKeyCount + pkdf->key.suffix.Cb() );
+	logMessage("node.cxx/NDILineToKeydataflags: after setCb");
+	logMessage("node.cxx/NDILineToKeydataflags: before SetPv");
+	pkdf->data.SetPv( const_cast<BYTE *>( pb ) + cbKeyCount + pkdf->key.suffix.Cb() );
+	logMessage("node.cxx/NDILineToKeydataflags: after SetPv");
 
     pkdf->fFlags    = pline->fFlags;
 
@@ -376,6 +408,7 @@ template< PageNodeBoundsChecking pgnbc >
 VOID NDIGetKeydataflags( const CPAGE& cpage, INT iline, KEYDATAFLAGS * pkdf, _Out_opt_ ERR * perrNoEnforce )
 //  ================================================================
 {
+	logMessage("node.cxx / NDIGetKeydataflags: entered the function.");
     LINE line;
     ERR errThrowAway;  // for subsequent errors past first
     OnDebug( const BOOL fNoEnforceCheck = ( perrNoEnforce != NULL ) );
@@ -384,7 +417,10 @@ VOID NDIGetKeydataflags( const CPAGE& cpage, INT iline, KEYDATAFLAGS * pkdf, _Ou
     Assert( ( pgnbc == pgnbcChecked ) || ( perrNoEnforce == NULL ) ); // this wouldn't make sense.
 
     Assert( perrNoEnforce == NULL || *perrNoEnforce == JET_errSuccess ); // only updated on errors
+	logMessage("node.cxx/NDIGetKeydataflags: before cpage.GetPtr< pgnbc >");
     cpage.GetPtr< pgnbc >( iline, &line, perrNoEnforce );
+	logMessage("node.cxx/NDIGetKeydataflags: after cpage.GetPtr< pgnbc >");
+
     Assert( line.pv != NULL || ( perrNoEnforce && *perrNoEnforce < JET_errSuccess ) );
     if constexpr( pgnbc == pgnbcChecked ) 
     {
@@ -401,7 +437,7 @@ VOID NDIGetKeydataflags( const CPAGE& cpage, INT iline, KEYDATAFLAGS * pkdf, _Ou
             }
 
             //  Check bare minimum can be defererenced, to continue KDF computations.
-
+			logMessage("node.cxx/NDIGetKeydataflags: Check bare minimum can be defererenced, to continue KDF computations.");
             const BOOL fKdfCbOnPage = cpage.FOnPage( line.pv, cbKeyCount + ( ( line.fFlags & fNDCompressed ) ? cbPrefixOverhead : 0 ) );
             if ( !fKdfCbOnPage )
             {
@@ -420,7 +456,9 @@ VOID NDIGetKeydataflags( const CPAGE& cpage, INT iline, KEYDATAFLAGS * pkdf, _Ou
     }
     Assert( line.pv != NULL );
 
+	logMessage("node.cxx/NDIGetKeydataflags: before NDILineToKeydataflags.");
     NDILineToKeydataflags< pgnbc >( cpage, &line, pkdf, perrNoEnforce );
+	logMessage("node.cxx/NDIGetKeydataflags: after NDILineToKeydataflags.");
     if constexpr( pgnbc == pgnbcChecked ) 
     {
     if ( perrNoEnforce && *perrNoEnforce < JET_errSuccess )
@@ -1019,15 +1057,21 @@ VOID NDMoveFirstSon( FUCB * pfucb, CSR * pcsr )
     NDGet( pfucb, pcsr );
 }
 
-
 //  ================================================================
 VOID NDMoveLastSon( FUCB * pfucb, CSR * pcsr )
 //  ================================================================
 {
+	logMessage("node.cxx: before NDIAssertCurrency");
     NDIAssertCurrency( pfucb, pcsr );
+	logMessage("node.cxx: after NDIAssertCurrency");
 
+	logMessage("node.cxx: before pcsr->SetILine");
     pcsr->SetILine( pcsr->Cpage().Clines() - 1 );
+	logMessage("node.cxx: after pcsr->SetILine");
+
+	logMessage("node.cxx: before NDGet");
     NDGet( pfucb, pcsr );
+	logMessage("node.cxx: after NDGet");
 }
 
 //  ================================================================
@@ -1436,11 +1480,15 @@ ERR ErrNDGet( FUCB * pfucb, const CSR * pcsr )
 VOID NDGet( FUCB * pfucb, const CSR * pcsr )
 //  ================================================================
 {
+	logMessage("node.cxx/NDGET: before NDIAssertCurrencyExists");
     NDIAssertCurrencyExists( pfucb, pcsr );
+	logMessage("node.cxx/NDGET: after NDIAssertCurrencyExists");
 
     KEYDATAFLAGS keydataflags;
+	logMessage("node.cxx/NDGET: before NDIGetKeydataflags");
     NDIGetKeydataflags( pcsr->Cpage(), pcsr->ILine(), &keydataflags );
-    
+	logMessage("node.cxx/NDGET: before NDIGetKeydataflags");
+
     pfucb->kdfCurr = keydataflags;
     pfucb->fBookmarkPreviouslySaved = fFalse;
 }
