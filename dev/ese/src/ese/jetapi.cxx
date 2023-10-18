@@ -16626,6 +16626,32 @@ LOCAL JET_ERR JetAttachDatabaseExA(
     return JetAttachDatabaseEx( sesid, lwszDatabaseName, rgsetdbparam, csetdbparam, grbit );
 }
 
+LONG HandleAccessViolationException(EXCEPTION_POINTERS* exceptionInfo)
+{
+	if (exceptionInfo->ExceptionRecord->ExceptionCode == EXCEPTION_ACCESS_VIOLATION)
+	{
+		// Access violation exception occurred
+		printf("Access Violation Exception Caught\n");
+		return EXCEPTION_EXECUTE_HANDLER; // Handle the exception
+	}
+	// If it's not an access violation, let other exceptions pass through
+	return EXCEPTION_CONTINUE_SEARCH;
+}
+
+JET_ERR falure() {
+	__try
+	{
+		int* ptr = NULL;
+		*ptr = 42; // This will trigger an access violation
+	}
+	__except (HandleAccessViolationException(GetExceptionInformation()))
+	{
+		// Exception was caught and handled
+		printf("Access Violation Exception Handled\n");
+	}
+	return 0;
+}
+
 JET_ERR JET_API JetAttachDatabaseA(
     __in JET_SESID  sesid,
     __in JET_PCSTR  szFilename,
