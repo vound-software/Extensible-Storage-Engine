@@ -252,7 +252,7 @@ void UserDebugBreakPoint()
 
         if ( !IsDebuggerAttached() )
         {
-			// Vound update (2023-10-17): handling errors by terminating OS processes is not permited in this fork of the library.
+			// Vound update (2023-10-17): handling errors by terminating OS processes is not acceptable in this fork of the library.
             // TerminateProcess( GetCurrentProcess(), UINT( ~0 ) );
         }
     }
@@ -266,7 +266,7 @@ void UserDebugBreakPoint()
 
 static void ForceProcessCrash()
 {
-	// Vound update (2023-10-17): handling errors by terminating OS processes is not permited in this fork of the library.
+	// Vound update (2023-10-17): handling errors by terminating OS processes is not acceptable in this fork of the library.
     // *( char* )0 = 0;
 }
 
@@ -278,7 +278,7 @@ static void TryRaiseFailFastException(
     const PCONTEXT pContextRecord,
     const DWORD dwFlags)
 {
-	// Vound update (2023-10-17): handling errors by terminating OS processes is not permited in this fork of the library.
+	// Vound update (2023-10-17): handling errors by terminating OS processes is not acceptable in this fork of the library.
 	// Therefore the fast exit.
 	if (true) return;
 
@@ -1117,7 +1117,7 @@ EExceptionFilterAction _ExceptionFail( const CHAR* szMessage, EXCEPTION exceptio
 
     if ( efa == efaExecuteHandler )
     {
-		// Vound update (2023-10-17): handling errors by terminating OS processes is not permited in this fork of the library.
+		// Vound update (2023-10-17): handling errors by terminating OS processes is not acceptable in this fork of the library.
         // TerminateProcess( GetCurrentProcess(), UINT( ~0 ) );
         LeaveCriticalSection( &g_csError );
         return efaExecuteHandler;
