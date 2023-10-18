@@ -252,7 +252,8 @@ void UserDebugBreakPoint()
 
         if ( !IsDebuggerAttached() )
         {
-            TerminateProcess( GetCurrentProcess(), UINT( ~0 ) );
+			// Vound update (2023-10-17): handling errors by terminating OS processes is not acceptable in this fork of the library.
+            // TerminateProcess( GetCurrentProcess(), UINT( ~0 ) );
         }
     }
 #endif
@@ -265,7 +266,8 @@ void UserDebugBreakPoint()
 
 static void ForceProcessCrash()
 {
-    *( char* )0 = 0;
+	// Vound update (2023-10-17): handling errors by terminating OS processes is not acceptable in this fork of the library.
+    // *( char* )0 = 0;
 }
 
 // Raise an exception that bypasses any frame-based or vectored exception handlers,
@@ -276,6 +278,10 @@ static void TryRaiseFailFastException(
     const PCONTEXT pContextRecord,
     const DWORD dwFlags)
 {
+	// Vound update (2023-10-17): handling errors by terminating OS processes is not acceptable in this fork of the library.
+	// Therefore the fast exit.
+	if (true) return;
+
 #ifdef OS_LAYER_VIOLATIONS
 #ifdef USE_WATSON_API
     // Send exchange watson report
@@ -844,7 +850,8 @@ void __stdcall AssertFail( PCSTR szMessage, PCSTR szFilename, LONG lLine, ... )
         switch ( g_wAssertAction )
         {
             case JET_AssertExit:
-                TerminateProcess( GetCurrentProcess(), UINT( ~0 ) );
+				// Vound update (2023-10-17): handling errors by terminating OS processes is not prefered in this fork of the library.
+                // TerminateProcess( GetCurrentProcess(), UINT( ~0 ) );
                 break;
 
             case JET_AssertFailFast:
@@ -958,7 +965,8 @@ void __stdcall EnforceContextFail( const WCHAR* wszContext, const CHAR* szMessag
 
         //  we must ensure process death on enforce failures
 
-        TerminateProcess( GetCurrentProcess(), UINT( ~0 ) );
+		// Vound update (2023-10-17): handling errors by terminating OS processes is not prefered in this fork of the library.
+        // TerminateProcess( GetCurrentProcess(), UINT( ~0 ) );
     }
 
     //  if we get to here, leave and fix-backup error ... for the most part we'll die in
@@ -1051,6 +1059,9 @@ C_ASSERT( EXCEPTION_EXECUTE_HANDLER == efaExecuteHandler );
 EExceptionFilterAction _ExceptionFail( const CHAR* szMessage, EXCEPTION exception )
 //  ================================================================
 {
+	// Vound update (2023-10-17): this method has been disabled to prevent it from handling errors by terminating OS processes.
+	if (true) return efaExecuteHandler;
+
     PEXCEPTION_POINTERS pexp            = PEXCEPTION_POINTERS( exception );
     PEXCEPTION_RECORD   pexr            = pexp->ExceptionRecord;
     PCONTEXT            pcxr            = pexp->ContextRecord;
@@ -1106,7 +1117,8 @@ EExceptionFilterAction _ExceptionFail( const CHAR* szMessage, EXCEPTION exceptio
 
     if ( efa == efaExecuteHandler )
     {
-        TerminateProcess( GetCurrentProcess(), UINT( ~0 ) );
+		// Vound update (2023-10-17): handling errors by terminating OS processes is not acceptable in this fork of the library.
+        // TerminateProcess( GetCurrentProcess(), UINT( ~0 ) );
         LeaveCriticalSection( &g_csError );
         return efaExecuteHandler;
     }
