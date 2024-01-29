@@ -446,6 +446,9 @@ typedef CAutoIWSZ< 90 > CAutoWSZPATH;
 
 
 #ifdef CATCH_EXCEPTIONS
+
+#define VOUND_EXCEPTION_HANDLING_ENABLED true
+
 #ifdef MINIMAL_FUNCTIONALITY
 
 /       swapping to the ET* calls here.  Same for _etguidApiCallStop as well obvi.
@@ -478,7 +481,7 @@ typedef CAutoIWSZ< 90 > CAutoWSZPATH;
     return err;                                                                     \
 }
 
-#else  //  !MINIMAL_FUNCTIONALITY
+#elif VOUND_EXCEPTION_HANDLING_ENABLED 
 
 #define JET_TRY_( api, func, fDisableLockCheck )                                    \
 {                                                                                   \
@@ -492,7 +495,38 @@ typedef CAutoIWSZ< 90 > CAutoWSZPATH;
         err = (func);                                                               \
         OSTrace( JET_tracetagAPI, OSFormat( "End %s with error %d (0x%x)", _T( #func ), err, err ) );   \
     }                                                                               \
-    EXCEPT( GrbitParam( JET_paramExceptionAction ) != JET_ExceptionNone ? ExceptionFail( _T( #func ) ) : efaContinueSearch )    \
+    EXCEPT(GrbitParam(JET_paramExceptionAction) != JET_ExceptionNone ? ExceptionFail(_T(#func)) : efaExecuteHandler)    \
+    {                                                                               \
+        AssertPREFIX( !"This code path should be impossible (the exception-handler should have terminated the process)." );     \
+        err = ErrERRCheck( JET_errInternalError );                                  \
+    }                                                                               \
+    ENDEXCEPT                                                                       \
+    AssertRTL( err > -65536 && err < 65536 );                                       \
+    fDisableLockCheck ? CLockDeadlockDetectionInfo::DisableLockCheckOnApiExit() : 0;\
+    CLockDeadlockDetectionInfo::AssertCleanApiExit(cDisableDeadlockCheck, cDisableOwnershipCheck, cLocks);                      \
+    fDisableLockCheck ? CLockDeadlockDetectionInfo::EnableLockCheckOnApiExit() : 0; \
+    Assert( FBFApiClean() );                                                        \
+    Assert( !FOSRefTraceErrors() || Ptls()->fInCallback );                          \
+    OSEventTrace( _etguidApiCall_Stop, 2, &ulTraceApiId, &err );                    \
+                                                                                    \
+    return err;                                                                     \
+}
+
+#else //  !MINIMAL_FUNCTIONALITY
+
+#define JET_TRY_( api, func, fDisableLockCheck )                                    \
+{                                                                                   \
+    JET_ERR err;                                                                    \
+    DWORD cDisableDeadlockCheck, cDisableOwnershipCheck, cLocks;                    \
+    const DWORD ulTraceApiId = api;                                                 \
+    OSEventTrace( _etguidApiCall_Start, 1, &ulTraceApiId );                         \
+    CLockDeadlockDetectionInfo::GetApiEntryState(&cDisableDeadlockCheck, &cDisableOwnershipCheck, &cLocks);                     \
+    TRY                                                                             \
+    {                                                                               \
+        err = (func);                                                               \
+        OSTrace( JET_tracetagAPI, OSFormat( "End %s with error %d (0x%x)", _T( #func ), err, err ) );   \
+    }                                                                               \
+    EXCEPT(GrbitParam(JET_paramExceptionAction) != JET_ExceptionNone ? ExceptionFail(_T(#func)) : efaContinueSearch)    \
     {                                                                               \
         AssertPREFIX( !"This code path should be impossible (the exception-handler should have terminated the process)." );     \
         err = ErrERRCheck( JET_errInternalError );                                  \
