@@ -4306,10 +4306,13 @@ ERR ISAMAPI ErrIsamAttachDatabase(
 #endif
     }
 
-    err = ErrDBICheckVersions( pinst, wszDbFullName, ifmp, pfmp->Pdbfilehdr().get(), PfmtversEngineMax()->dbv, pfmp->FReadOnlyAttach() );
-    Assert( err != JET_errEngineFormatVersionSpecifiedTooLowForDatabaseVersion ); // should be impossible.
-    Call( err );
-
+    if (Vound_DataVerificationsEnabled) {
+        // The compatiblity check between the ESE engine and the input EDB file is optional.
+        err = ErrDBICheckVersions(pinst, wszDbFullName, ifmp, pfmp->Pdbfilehdr().get(), PfmtversEngineMax()->dbv, pfmp->FReadOnlyAttach());
+        Assert(err != JET_errEngineFormatVersionSpecifiedTooLowForDatabaseVersion); // should be impossible.
+        Call(err);
+    }
+    
     pfmp->m_isdlAttach.Trigger( eAttachReadDBHeader );
 
     //  update header if upgrade needed
