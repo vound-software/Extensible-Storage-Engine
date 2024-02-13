@@ -20702,6 +20702,11 @@ ERR ErrTermComplete( JET_INSTANCE instance, JET_GRBIT grbit )
 
     IRSCleanUpAllIrsResources( pinst );
 
+    // When this method is called for a corrupted EDB it does not originally prevent the following do-while loop from running indefinitely.
+    // The variable remainingAttempts ensures the loop does not end up running indefinitely.
+    // --
+    // Nemanja Kojic (nemanja.kojic@vound-software.com), Feb 12, 2024
+    int remainingAttempts = 10;
     size_t cpibInJetAPI;
     do
     {
@@ -20725,9 +20730,10 @@ ERR ErrTermComplete( JET_INSTANCE instance, JET_GRBIT grbit )
         if ( cpibInJetAPI )
         {
             UtilSleep( cmsecWaitGeneric );
+            --remainingAttempts;
         }
     }
-    while ( cpibInJetAPI );
+    while ( cpibInJetAPI && remainingAttempts > 0);
 
     pinst->APILock( pinst->fAPITerminating );
     pcritInst->Leave();

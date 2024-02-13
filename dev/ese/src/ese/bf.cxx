@@ -23089,7 +23089,13 @@ void BFIPurgePage(
     BOOL fLatched = ( bfltHave != bfltMax );
     const BOOL fAllowTearDownClean = ( 0 != ( bfefDangerousOptions & bfefAllowTearDownClean ) );
 
-    while ( fTrue )
+    // When this method is called for a corrupted EDB it does not originally prevents the following while loop from running indefinitely.
+    // The variable remainingAttempts ensures the loop does not end up running indefinitely.
+    // --
+    // Nemanja Kojic (nemanja.kojic@vound-software.com), Feb 12, 2024
+    int remainingAttempts = 10;
+
+    while ( fTrue && remainingAttempts > 0)
     {
         // Check if page changed under us. We must not require a latch to check because the page might be in a
         // condition that will never give up the latch (e.g., page is in the avail pool).
@@ -23111,6 +23117,7 @@ void BFIPurgePage(
             {
                 Assert( errSXWL == CSXWLatch::ERR::errLatchConflict );
                 UtilSleep( dtickFastRetry );
+                --remainingAttempts;
                 continue;
             }
         }
@@ -23128,6 +23135,7 @@ void BFIPurgePage(
             BFIReleaseSXWL( pbf, bfltWrite );
             fLatched = fFalse;
             UtilSleep( dtickFastRetry );
+            --remainingAttempts;
             continue;
         }
         Assert( pbf->err != wrnBFPageFlushPending ||
@@ -23184,6 +23192,7 @@ void BFIPurgePage(
                     errEvict == errBFIPageFaultPendingHungIO ||
                     errEvict == errBFLatchConflict, "Unknown errEvict=%d.", errEvict );
             UtilSleep( dtickFastRetry );
+            --remainingAttempts;
             continue;
         }
         else
